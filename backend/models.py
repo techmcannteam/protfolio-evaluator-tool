@@ -47,6 +47,7 @@ class Model(BaseModel):
 
 
 class PropertyInput(Model):
+    is_rental: bool = False
     address: str = Field(min_length=10, max_length=250)
     property_type: (
         Literal[

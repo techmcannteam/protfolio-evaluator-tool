@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from .agents import resolve_agent
 from .config import DISCLAIMER, Settings
 from .follow_up_boss import pushToFUB
-from .models import CMARequest, EvaluateRequest
+from .models import CMARequest, EvaluateRequest, PropertyInput
 from .places import lookup
 from .providers.attom import Attom
 from .providers.base import Transport
@@ -50,6 +50,7 @@ def create_app(settings=None, repository=None, providers=None):
     )
     frontend = Path(__file__).resolve().parents[1] / "frontend"
     app.mount("/assets", StaticFiles(directory=frontend / "assets"), name="assets")
+    app.mount("/agents", StaticFiles(directory=frontend.parent / "public" / "agents"), name="agent-photos")
     app.state.repository = repository
     # Same-origin by default; configure an explicit frontend allowlist when needed.
     import os
@@ -106,7 +107,7 @@ def create_app(settings=None, repository=None, providers=None):
         now = time.time()
         if not repository.consume(
             f"ip:{category}:{fingerprint}:{int(now // 3600)}",
-            settings.rate_limit if category == "evaluate" else (120 if category == "places" else 5),
+            settings.rate_limit if category in ("evaluate", "record") else (120 if category == "places" else 5),
         ):
             raise HTTPException(
                 429,
@@ -181,6 +182,13 @@ def create_app(settings=None, repository=None, providers=None):
             "cache_days": 30,
             "disclaimer": DISCLAIMER,
         }
+
+    @app.post("/api/property-record")
+    def property_record(body: PropertyInput, request: Request):
+        limit(request, "record")
+        provider = next((p for p in providers if hasattr(p, "record")), None)
+        record = provider.record(body) if provider else {}
+        return {"property_type": record.get("details", {}).get("propertyType")}
 
     @app.post("/api/evaluate")
     def evaluate(

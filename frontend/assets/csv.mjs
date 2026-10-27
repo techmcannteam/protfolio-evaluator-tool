@@ -1,3 +1,4 @@
+import {propertyType, propertyRow} from './properties.mjs';
 // CSV is parsed locally; only reviewed addresses are sent for evaluation.
 export const MAX_CSV_BYTES = 100 * 1024;
 const aliases = {street:'st',avenue:'ave',road:'rd',lane:'ln',drive:'dr',boulevard:'blvd',terrace:'ter',circle:'cir',court:'ct',place:'pl',pennsylvania:'pa',apartment:'unit',apt:'unit',suite:'unit'};
@@ -39,6 +40,7 @@ export function mergeCsv(text, existing=[]) {
   const find=(...names)=>headers.findIndex(h=>names.includes(h));
   const full=find('fulladdress','formattedaddress');const street=find('address','street','streetaddress','address1');
   const city=find('city'),state=find('state'),zip=find('zip','zipcode','postalcode'),unit=find('unit','apartment','apt','suite','address2');
+  const typeColumn=find("propertytype"), rentalColumn=find("isrental");
   const split=city>=0&&state>=0&&zip>=0&&street>=0;
   if(full<0&&street<0)throw new Error('Include an address column, or street, city, state and zip columns.');
   if(full<0&&!split&&[city,state,zip].some(i=>i>=0))throw new Error('Separate address columns need street/address, city, state and zip.');
@@ -54,11 +56,15 @@ export function mergeCsv(text, existing=[]) {
       address=`${row[street].trim()}${unitText?' '+unitText:''}, ${row[city].trim()}, ${row[state].trim()} ${row[zip].trim()}`;
     }else address=row[street].trim();
     if(!validAddress(address))throw new Error(`CSV row ${i+1}: enter a full street address, city, two-letter state and ZIP. Include the unit number if applicable.`);
-    imported.push(address);
+    const rawType=row[typeColumn]?.trim()||'', rawRental=(row[rentalColumn]||'').trim().toLowerCase();
+    const type=propertyType(rawType);
+    if(rawType&&!type)throw new Error(`CSV row ${i+1}: property_type must be House, Rowhome / townhouse, Condo or 2–4 unit.`);
+    if(!['','yes','no'].includes(rawRental))throw new Error(`CSV row ${i+1}: is_rental must be yes or no.`);
+    imported.push({address,property_type:type,is_rental:rawRental==='yes'});
   }
-  const addresses=existing.map(a=>a.trim()).filter(Boolean), seen=new Set(addresses.map(addressKey));
+  const properties=existing.map(propertyRow).filter(p=>p.address.trim()), seen=new Set(properties.map(p=>addressKey(p.address)));
   let added=0,duplicates=0;
-  for(const address of imported){const key=addressKey(address);if(seen.has(key)){duplicates++;continue;}seen.add(key);addresses.push(address);added++;}
-  if(addresses.length>10)throw new Error(`This would give you ${addresses.length} properties. The limit is 10 total, including addresses already entered. Nothing was imported.`);
-  return {addresses,added,duplicates};
+  for(const property of imported){const key=addressKey(property.address);if(seen.has(key)){duplicates++;continue;}seen.add(key);properties.push(property);added++;}
+  if(properties.length>10)throw new Error(`This would give you ${properties.length} properties. The limit is 10 total, including addresses already entered. Nothing was imported.`);
+  return {addresses:properties.map(p=>p.address),properties,added,duplicates};
 }

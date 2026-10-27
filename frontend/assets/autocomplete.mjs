@@ -15,7 +15,7 @@ export function installAutocomplete(root) {
   async function select(index){
    const item=items[index];if(!item)return;cancel();const current=version;status.textContent='Completing address…';
    try{const data=await request('/api/address-details',{place_id:item.id,token});if(current!==version||!input.isConnected)return;
-    input.value=data.address;input.dispatchEvent(new Event('input',{bubbles:true}));cancel();status.textContent='Address selected. Add or check the unit number if applicable.';input.focus();
+    input.value=data.address;input.dispatchEvent(new Event('input',{bubbles:true}));cancel();input.dispatchEvent(new Event('address-resolved',{bubbles:true}));status.textContent='Address selected. Add or check the unit number if applicable.';input.focus();
    }catch(error){if(current===version&&error.name!=='AbortError')status.textContent='Could not complete this address. Enter the street, city, state and ZIP manually.';}
    finally{token=crypto.randomUUID();}
   }

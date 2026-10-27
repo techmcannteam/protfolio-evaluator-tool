@@ -115,7 +115,7 @@ def test_api_cma(setup):
         a["slug"] == "test-ben" for a in client.get("/api/agents").json()["agents"]
     )
     result = client.post(
-        "/api/evaluate?agent=test-ben", json={"addresses": [ADDRESS]}
+        "/api/evaluate?agent=test-ben", json={"addresses": [{"address": ADDRESS, "is_rental": True}]}
     ).json()
     assert result["disclaimer"] == DISCLAIMER
     assert result["totals"]["cap_rate"] == 0.046
@@ -388,7 +388,7 @@ def test_batch_retains_input_order(setup):
     _, repo, settings = setup
     addresses = [ADDRESS, "3424 Wallace St, Philadelphia, PA 19104"]
     result = Evaluator(repo, [Provider()], settings).evaluate(
-        EvaluateRequest(addresses=addresses)
+        EvaluateRequest(addresses=[{"address": a, "is_rental": True} for a in addresses])
     )
     assert [r["address"] for r in result["properties"]] == addresses
     assert result["totals"]["estimated_value"] == 800000
@@ -426,7 +426,7 @@ def test_roster_profile_and_attribution(setup):
     agent = client.get(
         "/api/agent?slug=jane-agent&photo_url=https://evil.example&full_name=Forged"
     ).json()
-    assert agent["photo_url"] == "https://example.com/photo.jpg"
+    assert agent["photo_url"] == "/agents/jane-agent.jpg"
     assert agent["full_name"] == "Jane Agent" and agent["phone"] == "+12155550100"
     assert "fub_user_id" not in agent
     result = client.post(
@@ -461,7 +461,7 @@ def test_profile_rejects_unsafe_photo_and_frontend_served(setup):
             "UPDATE agents SET photo_url=? WHERE slug=?",
             ("javascript:alert(1)", "test-ben"),
         )
-    assert client.get("/api/agent?slug=test-ben").json()["photo_url"] == ""
+    assert client.get("/api/agent?slug=test-ben").json()["photo_url"] == "/agents/test-ben.jpg"
     assert client.get("/evaluator?agent=test-ben").status_code == 200
     assert client.get("/assets/evaluator.js").status_code == 200
     assert (
@@ -521,3 +521,45 @@ def test_attom_live_scale_and_cached_confidence():
         PropertyInput(address=ADDRESS)
     )
     assert result["cached"] and result["value"]["confidence"] == 0.91
+
+
+def test_only_rentals_contribute_to_cap_rate(setup):
+    client, _, _ = setup
+    result = client.post('/api/evaluate', json={'addresses': [
+        {'address': ADDRESS, 'property_type': 'Townhouse', 'is_rental': True},
+        {'address': '3424 Wallace St, Philadelphia, PA 19104', 'property_type': 'Condo'},
+    ]}).json()
+    rental, owner = result['properties']
+    assert rental['is_rental'] is True
+    assert owner['is_rental'] is False
+    assert rental['property_type'] == 'Townhouse'
+    assert owner['operating']['cap_rate'] is None
+    assert result['totals']['cap_rate'] == rental['operating']['cap_rate']
+    assert result['totals']['annual_noi'] == rental['operating']['annual_noi']
+    result = client.post('/api/evaluate', json={'addresses': [ADDRESS]}).json()
+    assert result['totals']['cap_rate'] is None
+    assert result['properties'][0]['is_rental'] is False
+
+
+def test_local_default_agent_photo(setup):
+    client, _, _ = setup
+    assert client.get('/api/agent').json()['photo_url'] == '/agents/mike-mccann.jpg'
+    assert client.get('/agents/mike-mccann.jpg').status_code == 404
+
+
+def test_record_lookup_reuses_provider_and_does_not_evaluate(setup):
+    from fastapi.testclient import TestClient
+
+    from backend.main import create_app
+    _, repo, settings = setup
+
+    class RecordProvider:
+        def record(self, prop):
+            assert prop.address == ADDRESS
+            return {'details': {'propertyType': 'Townhouse'}}
+
+        def evaluate(self, prop):
+            raise AssertionError('Record lookup must not run valuations')
+
+    with TestClient(create_app(settings, repo, [RecordProvider()])) as client:
+        assert client.post('/api/property-record', json={'address': ADDRESS}).json() == {'property_type': 'Townhouse'}

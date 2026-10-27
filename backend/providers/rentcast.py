@@ -58,6 +58,16 @@ class RentCast:
     def __init__(self, transport, key):
         self.transport, self.key = transport, key
 
+    def record(self, property):
+        if not self.key:
+            return {"status": "not_configured"}
+        address = normalize_address(property.address)
+        return self.transport.get(
+            self.name, address, BASE + "/properties",
+            {"address": address, "limit": 1},
+            {"X-Api-Key": self.key, "Accept": "application/json"}, project_records,
+        )
+
     def evaluate(self, property):
         if not self.key:
             return {"provider": self.name, "status": "not_configured", "cached": False}
@@ -84,14 +94,7 @@ class RentCast:
             headers,
             lambda d: project_avm(d, True),
         )
-        records = self.transport.get(
-            self.name,
-            address,
-            BASE + "/properties",
-            {"address": address, "limit": 1},
-            headers,
-            project_records,
-        )
+        records = self.record(property)
         details = {**value.get("details", {}), **records.get("details", {})}
         matched = details.get("formattedAddress")
         warning = False

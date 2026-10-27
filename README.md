@@ -142,3 +142,14 @@ The landing page accepts UTF-8 `.csv` files up to 100 KB. Use an `address` colum
 Run CSV parser tests with `npm run test:csv`; the browser suite also covers import and subsequent evaluation with agent attribution.
 
 Autocomplete requires `GOOGLE_PLACES_API_KEY` on the server. Requests are debounced 350 ms after four characters; session tokens join predictions and selected-place details. Suggestions are not cached. Limits: 120 requests per IP per hour and 1,000 Places requests per day across the project. Google Maps attribution appears below suggestions.
+
+
+### Entry-page property metadata and local photos
+
+Each address has a required property type and an optional rental flag (off by default). `/api/property-record` reuses RentCast's `/properties` adapter and existing provider cache/budget. It never runs AVMs. Unsupported or unavailable record types require an owner selection. Owner overrides flow to RentCast's existing `propertyType` parameter. Evaluation responses retain both fields; non-rentals have no cap rate and only rentals contribute to aggregate NOI/cap rate.
+
+CSV accepts optional `property_type` (House, Rowhome / townhouse, Condo, 2–4 unit, or the matching existing provider enum) and `is_rental` (yes/no). Missing type is resolved on entry; missing rental status is false.
+
+The existing roster `photo_url` field supports local `/agents/<slug>.jpg` paths; that slug path is also the default. Place Mike's file at `public/agents/mike-mccann.jpg`. FastAPI serves it at `/agents/mike-mccann.jpg`. Remote headshot URLs are not used. The shared renderer is used on entry, results, CMA, and confirmation, with initials on missing/failed images.
+
+Review screenshots use synthetic local records and estimates, not live provider valuations.

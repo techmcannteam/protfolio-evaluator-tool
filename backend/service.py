@@ -23,12 +23,16 @@ class Evaluator:
             details = next((s["details"] for s in sources if s.get("details")), {})
             result = {
                 "address": property.address,
+                "property_type": property.property_type or details.get("propertyType"),
+                "is_rental": property.is_rental,
                 "normalized_address": normalize_address(property.address),
                 "details": details,
                 "sources": sources,
                 "cached": all(s.get("cached") for s in sources),
                 **calculate(sources, details, assumptions),
             }
+            if not property.is_rental and result["operating"]:
+                result["operating"]["cap_rate"] = None
             result["warnings"] = []
             if any(s.get("match_warning") for s in sources):
                 result["warnings"].append(
@@ -58,10 +62,11 @@ class Evaluator:
             results = list(pool.map(evaluate_property, request.addresses))
         values = [r["value"] for r in results if r["value"]]
         rents = [r["rent"] for r in results if r["rent"]]
-        operating = [r for r in results if r["operating"]]
+        rentals = [r for r in results if r["is_rental"]]
+        operating = [r for r in rentals if r["operating"]]
         operating_value = sum(r["value"]["estimate"] for r in operating)
         noi = sum(r["operating"]["annual_noi"] for r in operating)
-        complete = len(values) == len(results) and len(operating) == len(results)
+        complete = len(values) == len(results) and len(operating) == len(rentals)
         totals = {
             "estimated_value": round(sum(v["estimate"] for v in values), 2),
             "value_low": sum(v["low"] for v in values)
@@ -73,7 +78,7 @@ class Evaluator:
             "monthly_rent": sum(r["estimate"] for r in rents),
             "annual_noi": round(noi, 2) if operating else None,
             "cap_rate": round(noi / operating_value, 6)
-            if operating_value and complete
+            if operating_value and len(operating) == len(rentals)
             else None,
             "complete": complete,
             "properties_requested": len(results),

@@ -36,6 +36,9 @@ with repo.transaction() as db:
 
 
 class Provider:
+    def record(self, prop):
+        return {"status": "ok", "details": {"propertyType": "Condo" if "219" in prop.address else "Townhouse"}}
+
     def evaluate(self, prop):
         if "999" in prop.address:
             return {"provider": "test", "status": "not_found", "cached": True}

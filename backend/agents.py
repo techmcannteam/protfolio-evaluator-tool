@@ -1,7 +1,6 @@
 """Roster-controlled public identities. Never accept identities/URLs from visitors."""
 
 import re
-from urllib.parse import urlsplit
 
 DEFAULT_SLUG = "mike-mccann"
 SLUG = re.compile(r"[a-z0-9-]{1,60}\Z")
@@ -9,16 +8,9 @@ SLUG = re.compile(r"[a-z0-9-]{1,60}\Z")
 
 def public_agent(row):
     name = row.get("full_name") or row["name"]
-    photo = row.get("photo_url") or ""
-    try:
-        url = urlsplit(photo)
-    except ValueError:
-        photo = ""
-        url = urlsplit("")
-    if not (
-        url.scheme == "https" and url.hostname and not url.username and not url.password
-    ) and not (photo.startswith("/assets/") and not photo.startswith("//")):
-        photo = ""
+    photo = row.get("photo_url") or f"/agents/{row['slug']}.jpg"
+    if not (photo.startswith("/assets/") or re.fullmatch(r"/agents/[a-z0-9-]{1,60}\.jpg", photo)):
+        photo = f"/agents/{row['slug']}.jpg"
     phone = row.get("phone") or ""
     if not re.fullmatch(r"\+?[0-9 ()\-.]{7,30}", phone):
         phone = ""

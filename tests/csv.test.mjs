@@ -22,3 +22,10 @@ test('reject over ten atomically and accept exactly ten',()=>{
  assert.equal(mergeCsv(text).addresses.length,10);
  const existing=[address];assert.throws(()=>mergeCsv(text,existing),/limit is 10/);assert.deepEqual(existing,[address]);
 });
+test('optional property metadata defaults and validation',()=>{
+ const r=mergeCsv('address,property_type,is_rental\n"'+address+'",Rowhome / townhouse,yes');
+ assert.equal(r.properties[0].property_type,'Townhouse');assert.equal(r.properties[0].is_rental,true);
+ const missing=mergeCsv('address\n"'+address+'"').properties[0];assert.equal(missing.property_type,'');assert.equal(missing.is_rental,false);
+ assert.throws(()=>mergeCsv('address,is_rental\n"'+address+'",maybe'),/yes or no/);
+ assert.throws(()=>mergeCsv('address,property_type\n"'+address+'",office'),/property_type/);
+});
