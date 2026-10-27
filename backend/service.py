@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor
+
 from .config import DISCLAIMER
 from .models import normalize_address
 from .valuation import calculate
@@ -8,7 +10,6 @@ class Evaluator:
         self.repository, self.providers, self.settings = repository, providers, settings
 
     def evaluate(self, request, agent=None):
-        results = []
         assumptions = (
             self.settings.defaults.model_copy(
                 update=request.assumptions.model_dump(exclude_unset=True)
@@ -16,7 +17,8 @@ class Evaluator:
             if request.assumptions
             else self.settings.defaults
         )
-        for property in request.addresses:
+
+        def evaluate_property(property):
             sources = [provider.evaluate(property) for provider in self.providers]
             details = next((s["details"] for s in sources if s.get("details")), {})
             result = {
@@ -30,7 +32,7 @@ class Evaluator:
             result["warnings"] = []
             if any(s.get("match_warning") for s in sources):
                 result["warnings"].append(
-                    "Provider matched a different address spelling or unit; ask your agent to verify."
+                    "Provider address, unit or property type differs from your input; ask your agent to verify."
                 )
             if not result["value"]:
                 statuses = {s["status"] for s in sources}
@@ -50,7 +52,10 @@ class Evaluator:
                 result["estimate_id"] = self.repository.save_estimate(
                     property.address, agent, result
                 )
-            results.append(result)
+            return result
+
+        with ThreadPoolExecutor(max_workers=min(5, len(request.addresses))) as pool:
+            results = list(pool.map(evaluate_property, request.addresses))
         values = [r["value"] for r in results if r["value"]]
         rents = [r["rent"] for r in results if r["rent"]]
         operating = [r for r in results if r["operating"]]

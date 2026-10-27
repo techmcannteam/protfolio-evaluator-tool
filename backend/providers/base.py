@@ -15,7 +15,7 @@ class Provider(Protocol):
 class Transport:
     def __init__(self, repository, settings, session=None):
         self.repository, self.settings = repository, settings
-        self.session = session or requests.Session()
+        self.session = session or requests
 
     def get(self, provider, address, url, params, headers, project):
         key = hashlib.sha256(

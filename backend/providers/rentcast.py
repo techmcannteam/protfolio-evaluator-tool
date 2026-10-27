@@ -100,13 +100,19 @@ class RentCast:
                 warning = normalize_address(matched) != address
             except ValueError:
                 warning = True
+        type_warning = bool(
+            property.property_type
+            and details.get("propertyType")
+            and property.property_type != details["propertyType"]
+        )
         return {
             "provider": self.name,
+            "property_type_warning": type_warning,
             "status": "ok" if value.get("metric") else value["status"],
             "value": value.get("metric"),
             "rent": rent.get("metric"),
             "details": details,
-            "match_warning": warning,
+            "match_warning": warning or type_warning,
             "cached": all(x.get("cached") for x in [value, rent, records]),
             "endpoint_status": {
                 "value": value["status"],

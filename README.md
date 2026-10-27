@@ -51,7 +51,7 @@ Property details are whitelisted: beds, baths, square footage, year built, last 
 
 Value and rent estimates are medians across available sources. Low is the lowest reported low, high the highest reported high. Unblended estimates, bounds and available confidence are persisted in cache and estimate snapshots for later comparison. Bounds are descriptive, not calibrated confidence intervals. The backend uses the requested median rule, not the experimental Nicole outlier-trimming rule.
 
-Confidence is heuristic: low above 20% disagreement or any provider score below 0.6; high for two or more sources agreeing within 10% with no available score below 0.8; medium otherwise. ATTOM FSD maps to 1−FSD, otherwise SCR/100. RentCast gets no invented provider score. Address mismatch warnings lower confidence. Labels are not probabilities.
+Confidence is heuristic: low above 20% disagreement or any provider score below 0.6; high for two or more sources agreeing within 10% with no available score below 0.8; medium otherwise. ATTOM FSD maps to 1−FSD, otherwise SCR/100. RentCast gets no invented provider score. Address or property-type mismatch warnings lower confidence. Labels are not probabilities.
 
 NOI = annual rent × (1 − vacancy) − taxes − insurance − maintenance − management. Management and maintenance are fractions of gross rent; insurance and fallback taxes are fractions of value. Actual taxes override fallback taxes, unless the owner explicitly overrides annual_taxes. Zero actual taxes are retained. Defaults are **placeholders pending Ben's confirmation**. Debt service, financing, depreciation and income taxes are excluded.
 
@@ -109,7 +109,7 @@ For a deliberate fresh run, load credentials into the process environment and ru
 Vercel project `mccann-portfolio-evaluator`, team `the-mike-mc-cann-team`. `pyproject.toml` sets backend.main:app following [Vercel FastAPI documentation](https://vercel.com/docs/frameworks/backend/fastapi). Configure Preview environment variables securely, then deploy with:
 
 ```sh
-vercel deploy --scope the-mike-mc-cann-team
+vercel deploy --target preview --scope the-mike-mc-cann-team
 ```
 
 Vercel rejected automatic GitHub linking (`repo_no_access`); CLI snapshot deployment is independent. Automatic deployments on push are not configured. No production promotion is implied. This preview seeds test agents and simulates CMA delivery; replace test agents and implement the approved delivery/access/retention workflow before a consumer rollout.

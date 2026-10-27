@@ -351,3 +351,41 @@ def test_fub_stub_never_sends():
         "status": "simulated",
         "sent": False,
     }
+
+
+def test_provider_property_type_disagreement_is_visible(setup):
+    from backend.models import PropertyInput
+
+    _, repo, settings = setup
+    http = HTTP()
+    original = http.get
+
+    def get(url, **kwargs):
+        response = original(url, **kwargs)
+        if url.endswith("/properties"):
+            response.data[0]["propertyType"] = "Condo"
+        return response
+
+    http.get = get
+    source = RentCast(Transport(repo, settings, http), "test-key").evaluate(
+        PropertyInput(address=ADDRESS, property_type="Townhouse")
+    )
+    assert source["property_type_warning"] and source["match_warning"]
+    assert (
+        calculate([source], source["details"], Assumptions())["value"]["confidence"]
+        == "low"
+    )
+
+
+def test_batch_retains_input_order(setup):
+    from backend.models import EvaluateRequest
+    from backend.service import Evaluator
+
+    _, repo, settings = setup
+    addresses = [ADDRESS, "3424 Wallace St, Philadelphia, PA 19104"]
+    result = Evaluator(repo, [Provider()], settings).evaluate(
+        EvaluateRequest(addresses=addresses)
+    )
+    assert [r["address"] for r in result["properties"]] == addresses
+    assert result["totals"]["estimated_value"] == 800000
+    assert result["totals"]["cap_rate"] == 0.046
