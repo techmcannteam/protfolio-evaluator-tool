@@ -1,5 +1,6 @@
 """Initialize only the evaluator schema and verify persistent behavior."""
 
+import time
 import uuid
 
 from dotenv import load_dotenv
@@ -16,10 +17,10 @@ repo.initialize()
 prefix = "smoke:" + str(uuid.uuid4())
 assert repo.consume(prefix, 1)
 assert not repo.consume(prefix, 1)
-result = repo.claim(prefix, "smoke", "Synthetic verification", "test", 1)
+result = repo.claim(prefix, prefix, "Synthetic verification", "test", 1)
 assert result[0] == "fetch"
 repo.finish(prefix, result[2], {"status": "ok", "value": 1}, 60)
-assert repo.claim(prefix, "smoke", "Synthetic verification", "test", 1)[0] == "cached"
+assert repo.claim(prefix, prefix, "Synthetic verification", "test", 1)[0] == "cached"
 identifier = repo.save_estimate(
     "Synthetic verification", "test-ben", {"value": {"estimate": 400000}}
 )
@@ -44,8 +45,12 @@ with repo.transaction() as db:
     db.execute("DELETE FROM cma_requests WHERE id=?", (cma_id,))
     db.execute("DELETE FROM estimates WHERE id=?", (identifier,))
     db.execute("DELETE FROM provider_cache WHERE cache_key=?", (prefix,))
-    db.execute("DELETE FROM provider_calls WHERE provider=?", ("smoke",))
+    db.execute("DELETE FROM provider_calls WHERE provider=?", (prefix,))
     db.execute("DELETE FROM counters WHERE counter_key=?", (prefix,))
+    db.execute(
+        "DELETE FROM counters WHERE counter_key=?",
+        (f"budget:{prefix}:{int(time.time() // 86400)}",),
+    )
 print(
     "Neon schema, cache, budget, estimates and CMA persistence passed. Synthetic contact rows removed. No permit tables accessed."
 )
