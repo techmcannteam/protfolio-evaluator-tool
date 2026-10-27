@@ -51,7 +51,7 @@ Property details are whitelisted: beds, baths, square footage, year built, last 
 
 Value and rent estimates are medians across available sources. Low is the lowest reported low, high the highest reported high. Unblended estimates, bounds and available confidence are persisted in cache and estimate snapshots for later comparison. Bounds are descriptive, not calibrated confidence intervals. The backend uses the requested median rule, not the experimental Nicole outlier-trimming rule.
 
-Confidence is heuristic: low above 20% disagreement or any provider score below 0.6; high for two or more sources agreeing within 10% with no available score below 0.8; medium otherwise. ATTOM FSD maps to 1−FSD, otherwise SCR/100. RentCast gets no invented provider score. Address or property-type mismatch warnings lower confidence. Labels are not probabilities.
+Confidence is heuristic: low above 20% disagreement or any provider score below 0.6; high for two or more sources agreeing within 10% with no available score below 0.8; medium otherwise. ATTOM confidence uses SCR/100 when SCR is within 0–100. FSD is retained as raw uncertainty and is not treated as a confidence probability. RentCast gets no invented provider score. Address or property-type mismatch warnings lower confidence. Labels are not probabilities.
 
 NOI = annual rent × (1 − vacancy) − taxes − insurance − maintenance − management. Management and maintenance are fractions of gross rent; insurance and fallback taxes are fractions of value. Actual taxes override fallback taxes, unless the owner explicitly overrides annual_taxes. Zero actual taxes are retained. Defaults are **placeholders pending Ben's confirmation**. Debt service, financing, depreciation and income taxes are excluded.
 

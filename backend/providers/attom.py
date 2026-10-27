@@ -23,13 +23,9 @@ def project(data, rental=False):
         return {"status": "not_found"}
     score = number(avm.get("scr"), zero=True)
     fsd = number(avm.get("fsd"), zero=True)
-    confidence = (
-        max(0, 1 - fsd)
-        if fsd is not None
-        else min(score / 100, 1)
-        if score is not None
-        else None
-    )
+    # SCR is the provider's 0–100 score. Preserve FSD as raw uncertainty;
+    # it is not a confidence probability and its units must not be guessed.
+    confidence = score / 100 if score is not None and score <= 100 else None
     return {
         "status": "ok",
         "metric": {
@@ -79,6 +75,15 @@ class Attom:
             headers,
             lambda d: project(d, True),
         )
+        # Recompute from preserved SCR on cache hits as well as fresh responses.
+        # This repairs earlier cached confidence without another paid request.
+        for response in (value, rent):
+            metric = response.get("metric")
+            if metric:
+                score = number(metric.get("raw_confidence"), zero=True)
+                metric["confidence"] = (
+                    score / 100 if score is not None and score <= 100 else None
+                )
         return {
             "provider": self.name,
             "status": value["status"],

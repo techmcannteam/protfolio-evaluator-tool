@@ -479,3 +479,45 @@ def test_agent_migration_preserves_existing_profiles(setup):
         )
     repo.initialize()
     assert repo.agent("mike-mccann")["photo_url"] == "https://example.com/mike.jpg"
+
+
+def test_attom_live_scale_and_cached_confidence():
+    from backend.models import PropertyInput
+    from backend.providers.attom import Attom
+
+    data = {
+        "property": [
+            {
+                "avm": {
+                    "amount": {
+                        "value": 371211,
+                        "low": 337998,
+                        "high": 404424,
+                        "scr": 91,
+                        "fsd": 9,
+                    }
+                }
+            }
+        ]
+    }
+    assert attom_project(data)["metric"]["confidence"] == 0.91
+    del data["property"][0]["avm"]["amount"]["scr"]
+    assert attom_project(data)["metric"]["confidence"] is None
+
+    class CachedTransport:
+        def get(self, *args):
+            return {
+                "status": "ok",
+                "cached": True,
+                "metric": {
+                    "estimate": 371211,
+                    "raw_confidence": 91,
+                    "fsd": 9,
+                    "confidence": 0,
+                },
+            }
+
+    result = Attom(CachedTransport(), "test-key").evaluate(
+        PropertyInput(address=ADDRESS)
+    )
+    assert result["cached"] and result["value"]["confidence"] == 0.91
