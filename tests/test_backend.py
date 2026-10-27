@@ -111,7 +111,9 @@ def test_blending():
 def test_api_cma(setup):
     client, repo, _ = setup
     assert client.get("/health").status_code == 200
-    assert client.get("/api/agents").json()["agents"][0]["slug"] == "test-ben"
+    assert any(
+        a["slug"] == "test-ben" for a in client.get("/api/agents").json()["agents"]
+    )
     result = client.post(
         "/api/evaluate?agent=test-ben", json={"addresses": [ADDRESS]}
     ).json()
@@ -157,8 +159,10 @@ def test_validation_and_overrides(setup):
     ]:
         assert c.post("/api/evaluate", json=data).status_code == 422
     assert (
-        c.post("/api/evaluate?agent=missing", json={"addresses": [ADDRESS]}).status_code
-        == 404
+        c.post("/api/evaluate?agent=missing", json={"addresses": [ADDRESS]}).json()[
+            "agent"
+        ]
+        == "mike-mccann"
     )
     result = c.post(
         "/api/evaluate",
@@ -389,3 +393,89 @@ def test_batch_retains_input_order(setup):
     assert [r["address"] for r in result["properties"]] == addresses
     assert result["totals"]["estimated_value"] == 800000
     assert result["totals"]["cap_rate"] == 0.046
+
+
+@pytest.mark.parametrize(
+    "slug", [None, "unknown-agent", "<script>", "a" * 61, "Mike-McCann", "../test-ben"]
+)
+def test_agent_resolution_falls_back(setup, slug):
+    client, _, _ = setup
+    response = client.get("/api/agent", params={} if slug is None else {"slug": slug})
+    assert response.status_code == 200
+    assert response.json()["slug"] == "mike-mccann"
+    assert response.json()["full_name"] == "Mike McCann"
+
+
+def test_roster_profile_and_attribution(setup):
+    client, repo, _ = setup
+    with repo.transaction() as db:
+        db.execute(
+            "INSERT INTO agents(slug,name,email,full_name,first_name,title,photo_url,phone,fub_user_id) VALUES(?,?,?,?,?,?,?,?,?)",
+            (
+                "jane-agent",
+                "Jane Agent",
+                "jane@example.com",
+                "Jane Agent",
+                "Jane",
+                "McCann Agent",
+                "https://example.com/photo.jpg",
+                "+12155550100",
+                "123",
+            ),
+        )
+    agent = client.get(
+        "/api/agent?slug=jane-agent&photo_url=https://evil.example&full_name=Forged"
+    ).json()
+    assert agent["photo_url"] == "https://example.com/photo.jpg"
+    assert agent["full_name"] == "Jane Agent" and agent["phone"] == "+12155550100"
+    assert "fub_user_id" not in agent
+    result = client.post(
+        "/api/evaluate?agent=jane-agent", json={"addresses": [ADDRESS]}
+    ).json()
+    identifier = result["properties"][0]["estimate_id"]
+    response = client.post(
+        "/api/cma-requests",
+        json={
+            "estimate_id": identifier,
+            "owner_name": "QA Owner",
+            "email": "qa@example.com",
+            "phone": "2155550100",
+            "agent_slug": "jane-agent",
+        },
+    )
+    assert response.status_code == 201
+    with repo.transaction() as db:
+        assert (
+            db.execute(
+                "SELECT agent_slug FROM cma_requests WHERE id=?",
+                (response.json()["id"],),
+            ).fetchone()["agent_slug"]
+            == "jane-agent"
+        )
+
+
+def test_profile_rejects_unsafe_photo_and_frontend_served(setup):
+    client, repo, _ = setup
+    with repo.transaction() as db:
+        db.execute(
+            "UPDATE agents SET photo_url=? WHERE slug=?",
+            ("javascript:alert(1)", "test-ben"),
+        )
+    assert client.get("/api/agent?slug=test-ben").json()["photo_url"] == ""
+    assert client.get("/evaluator?agent=test-ben").status_code == 200
+    assert client.get("/assets/evaluator.js").status_code == 200
+    assert (
+        client.get("/?agent=test-ben", follow_redirects=False).headers["location"]
+        == "/evaluator?agent=test-ben"
+    )
+
+
+def test_agent_migration_preserves_existing_profiles(setup):
+    _, repo, _ = setup
+    with repo.transaction() as db:
+        db.execute(
+            "UPDATE agents SET photo_url=?,phone=? WHERE slug=?",
+            ("https://example.com/mike.jpg", "2155550100", "mike-mccann"),
+        )
+    repo.initialize()
+    assert repo.agent("mike-mccann")["photo_url"] == "https://example.com/mike.jpg"

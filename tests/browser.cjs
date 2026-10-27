@@ -1,0 +1,94 @@
+/* Real-browser integration against synthetic local data; zero provider/FUB calls. */
+const {chromium}=require('playwright');
+const assert=require('node:assert/strict');
+const {spawn}=require('node:child_process');
+const {mkdtempSync,rmSync,mkdirSync}=require('node:fs');
+const {tmpdir}=require('node:os');
+const path=require('node:path');
+const root=path.resolve(__dirname,'..');
+const temp=mkdtempSync(path.join(tmpdir(),'mccann-browser-'));
+const screenshots=process.env.SCREENSHOT_DIR||path.join(temp,'screenshots');mkdirSync(screenshots,{recursive:true});
+const server=spawn(path.join(root,'.venv/bin/python'),['-m','uvicorn','browser_app:app','--app-dir','tests','--host','127.0.0.1','--port','8765'],{cwd:root,env:{...process.env,BROWSER_TEST_DB:path.join(temp,'test.sqlite3'),DATABASE_URL:'',RENTCAST_API_KEY:'',ATTOM_API_KEY:'',VERCEL:''},stdio:['ignore','pipe','pipe']});
+let log='';server.stderr.on('data',d=>log+=d);let browser;let passed=0;
+const base='http://127.0.0.1:8765';
+const check=(label)=>{passed++;console.log('PASS',label);};
+(async()=>{
+ for(let i=0;i<50;i++){try{if((await fetch(base+'/health')).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));if(i===49)throw Error(log);}
+ browser=await chromium.launch({headless:true, ...(process.env.CHROMIUM_PATH?{executablePath:process.env.CHROMIUM_PATH}:{})});
+ const context=await browser.newContext({viewport:{width:390,height:844}});
+ const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ for(const query of ['', '?agent=unknown-agent','?agent=%3Cscript%3E','?agent=Mike-McCann','?agent='+('a'.repeat(61))]){
+  await page.goto(base+'/evaluator'+query);await page.waitForSelector('.agent-strip .agent-name');
+  assert.equal(await page.locator('.agent-strip .agent-name').innerText(),'Mike McCann');assert.equal(new URL(page.url()).searchParams.get('agent'),'mike-mccann');
+ }
+ check('Missing, unknown, invalid, uppercase and oversized slugs fall back');
+ await page.goto(base+'/evaluator?agent=jane-agent&full_name=Injected&photo_url=https://evil.example/p.jpg');
+ await page.waitForSelector('.avatar img');await page.waitForFunction(()=>document.querySelector('.avatar img').naturalWidth>0);
+ assert.equal(await page.locator('.agent-name').innerText(),'Jane Agent');
+ assert.equal(await page.locator('.avatar img').getAttribute('alt'),'Photo of Jane Agent');
+ assert.equal(await page.locator('.avatar img').evaluate(el=>getComputedStyle(el).objectFit),'cover');
+ assert.deepEqual(await page.locator('.avatar').evaluate(el=>[el.offsetWidth,el.offsetHeight]),[72,88]);
+ await page.screenshot({path:path.join(screenshots,'landing-mobile.png'),fullPage:true});
+ check('Roster identity wins over query injection; photo and 72×88 layout');
+ for(const slug of ['no-photo','broken-agent']){
+  await page.goto(base+'/evaluator?agent='+slug);await page.waitForSelector('.agent-name');
+  await page.waitForFunction(()=>!document.querySelector('.avatar img'));
+  assert.equal(await page.locator('.avatar').innerText(),'JA');
+  assert.equal(await page.locator('.avatar').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(217, 217, 217)');
+ }
+ check('Empty and broken photos show initials on gray');
+ await page.goto(base+'/evaluator?agent=jane-agent');await page.waitForSelector('#address-0');
+ await page.fill('#address-0','2214 Fitzwater St, Philadelphia, PA 19146');
+ await page.route('**/api/evaluate?*',async route=>{const response=await route.fetch();await new Promise(r=>setTimeout(r,250));await route.fulfill({response});});
+ await page.getByRole('button',{name:"See what it's worth"}).click();
+ await page.getByRole('heading',{name:"Let's Run the Numbers"}).waitFor();assert.match(await page.locator('.fullscreen').innerText(),/Jane Agent/);
+ await page.getByRole('heading',{name:"Here's What It's Worth"}).waitFor();
+ assert.equal(new URL(page.url()).searchParams.get('agent'),'jane-agent');
+ assert.deepEqual(await page.locator('.avatar').evaluate(el=>[el.offsetWidth,el.offsetHeight]),[38,46]);
+ const old=await page.locator('#total-cap').innerText();
+ await page.locator('#vacancy').fill('15');await page.locator('#vacancy').dispatchEvent('input');
+ assert.notEqual(await page.locator('#total-cap').innerText(),old);
+ await page.getByRole('button',{name:'Reset',exact:true}).click();assert.equal(await page.locator('#total-cap').innerText(),old);
+ await page.screenshot({path:path.join(screenshots,'results-mobile.png'),fullPage:true});
+ check('Live local evaluation, loading attribution, results avatar, sliders');
+ await page.getByRole('button',{name:'Think this is off? Get a free CMA'}).first().click();
+ await page.locator('#cma-dialog').waitFor({state:'visible'});
+ assert.match(await page.locator('#cma-dialog').innerText(),/Free CMA from Jane Agent/i);
+ assert.match(await page.locator('.consent').innerText(),/By sending, you agree Jane Agent/);
+ await page.fill('#c-name','Test Owner');await page.fill('#c-email','owner@example.com');await page.fill('#c-phone','2155550100');
+ await page.screenshot({path:path.join(screenshots,'cma-mobile.png'),fullPage:true});
+ const sent=page.waitForRequest(r=>r.url().endsWith('/api/cma-requests'));
+ await page.getByRole('button',{name:'Send to Jane',exact:true}).click();
+ assert.equal((await sent).postDataJSON().agent_slug,'jane-agent');
+ await page.getByRole('heading',{name:'Thank You, Test'}).waitFor();
+ assert.equal(await page.getByRole('link',{name:'Call Jane'}).getAttribute('href'),'tel:+12155550100');
+ assert.equal(await page.getByRole('link',{name:'Email Jane'}).getAttribute('href'),'mailto:jane@example.com');
+ assert.match(await page.locator('.body').innerText(),/saved for Jane Agent/);
+ assert.match(await page.locator('.body').innerText(),/No notification has been sent/);
+ await page.screenshot({path:path.join(screenshots,'confirmation-mobile.png'),fullPage:true});
+ await page.getByRole('link',{name:'Back to my results'}).click();assert.equal(new URL(page.url()).searchParams.get('agent'),'jane-agent');
+ check('CMA slug, personalized modal/consent/confirmation, tel/mailto and return');
+ await page.getByRole('link',{name:'Check different properties'}).click();
+ await page.fill('#address-0','999 Unknown St, Philadelphia, PA 19146');await page.getByRole('button',{name:"See what it's worth"}).click();
+ await page.getByRole('heading',{name:"We Couldn't Find That Address"}).waitFor();
+ assert.deepEqual(await page.locator('.agent-strip .avatar').evaluate(el=>[el.offsetWidth,el.offsetHeight]),[60,72]);
+ assert.equal(new URL(page.url()).searchParams.get('agent'),'jane-agent');
+ await page.screenshot({path:path.join(screenshots,'not-found-mobile.png'),fullPage:true});
+ await page.getByRole('button',{name:'Edit my addresses'}).click();
+ for(let i=0;i<10;i++)await page.getByRole('button',{name:'Add another property'}).click();
+ await page.getByRole('heading',{name:'A Bigger Portfolio?'}).waitFor();
+ await page.getByRole('button',{name:'Back to my properties'}).click();assert.equal(await page.locator('[data-address]').count(),10);
+ check('Not-found avatar, attribution and ten-address limit');
+ await page.goto(base+'/evaluator?agent=jane-agent');await page.waitForSelector('#address-0');
+ await page.unroute('**/api/evaluate?*');await page.route('**/api/evaluate?*',route=>route.fulfill({status:503,contentType:'application/json',body:'{"detail":"Unavailable"}'}));
+ await page.fill('#address-0','2214 Fitzwater St, Philadelphia, PA 19146');await page.getByRole('button',{name:"See what it's worth"}).click();
+ await page.getByRole('heading',{name:'A Little Trouble with the Numbers'}).waitFor();assert.equal(new URL(page.url()).searchParams.get('agent'),'jane-agent');
+ check('Service failure retains agent and contact actions');
+ for(const width of [390,1280]){
+  await page.setViewportSize({width,height:900});await page.goto(base+'/evaluator?agent=jane-agent');await page.waitForSelector('#address-0');
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  if(width===1280)await page.screenshot({path:path.join(screenshots,'landing-desktop.png'),fullPage:true});
+ }
+ assert.deepEqual(errors,[]);check('Responsive layout and no browser exceptions');
+ console.log(`${passed} browser scenarios passed. Screenshots: ${screenshots}`);
+})().catch(e=>{console.error(e);process.exitCode=1;}).finally(async()=>{if(browser)await browser.close();server.kill();rmSync(temp,{recursive:true,force:true});});

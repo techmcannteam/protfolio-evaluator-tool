@@ -1,13 +1,17 @@
 import hashlib
 import hmac
+import re
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
+from .agents import resolve_agent
 from .config import DISCLAIMER, Settings
 from .follow_up_boss import pushToFUB
 from .models import CMARequest, EvaluateRequest
@@ -43,6 +47,8 @@ def create_app(settings=None, repository=None, providers=None):
         description=DISCLAIMER,
         lifespan=lifespan,
     )
+    frontend = Path(__file__).resolve().parents[1] / "frontend"
+    app.mount("/assets", StaticFiles(directory=frontend / "assets"), name="assets")
     app.state.repository = repository
     # Same-origin by default; configure an explicit frontend allowlist when needed.
     import os
@@ -108,8 +114,23 @@ def create_app(settings=None, repository=None, providers=None):
             )
 
     @app.get("/", include_in_schema=False)
-    def root():
-        return RedirectResponse("/docs")
+    def root(agent: str | None = None):
+        return RedirectResponse(
+            "/evaluator"
+            + (
+                "?agent=" + agent
+                if agent and re.fullmatch(r"[a-z0-9-]{1,60}", agent)
+                else ""
+            )
+        )
+
+    @app.get("/evaluator", include_in_schema=False)
+    def frontend_page():
+        return FileResponse(frontend / "index.html")
+
+    @app.get("/api/agent")
+    def agent_profile(slug: str | None = None):
+        return resolve_agent(repository, slug)
 
     @app.get("/health")
     def health():
@@ -139,12 +160,12 @@ def create_app(settings=None, repository=None, providers=None):
     def evaluate(
         body: EvaluateRequest,
         request: Request,
-        agent: str | None = Query(None, pattern=r"^[a-z0-9-]{1,60}$"),
+        agent: str | None = Query(None),
     ):
         limit(request, "evaluate")
-        attribution = agent or body.agent
-        if attribution and not repository.agent_exists(attribution):
-            raise HTTPException(404, "Agent not found.")
+        attribution = resolve_agent(
+            repository, agent if agent is not None else body.agent
+        )["slug"]
         return evaluator.evaluate(body, attribution)
 
     @app.post("/api/cma-requests", status_code=201)

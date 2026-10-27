@@ -11,7 +11,7 @@ cp .env.example .env
 uv run uvicorn backend.main:app --reload --env-file .env
 ```
 
-Open `/docs` for interactive API documentation and `/openapi.json` for the contract. Local development falls back to SQLite when DATABASE_URL is empty. Vercel requires DATABASE_URL and a random IP_HASH_SALT. Schema initialization is idempotent and serialized in Postgres.
+Open `/evaluator?agent=mike-mccann` for the owner experience and `/docs` for interactive API documentation and `/openapi.json` for the contract. Local development falls back to SQLite when DATABASE_URL is empty. Vercel requires DATABASE_URL and a random IP_HASH_SALT. Schema initialization is idempotent and serialized in Postgres.
 
 ## API
 
@@ -113,3 +113,24 @@ vercel deploy --target preview --scope the-mike-mc-cann-team
 ```
 
 Vercel rejected automatic GitHub linking (`repo_no_access`); CLI snapshot deployment is independent. Automatic deployments on push are not configured. No production promotion is implied. This preview seeds test agents and simulates CMA delivery; replace test agents and implement the approved delivery/access/retention workflow before a consumer rollout.
+
+
+## Frontend and sending-agent identity
+
+The responsive owner flow uses the supplied skyline, interior and McCann logo assets, Cormorant Garamond/Lato typography, square red buttons, underline inputs and white/black panels. It includes landing, loading, results, assumption controls, per-property CMA form, honest simulated-delivery confirmation, and not-found/limit/service errors. Address suggestions are not fabricated: users enter complete addresses until a verified autocomplete provider is connected. Backend financial defaults/formulas remain authoritative rather than adopting the mockups' conflicting sample defaults. Confidence descriptions reflect the actual backend heuristic, not unsupported claims about nearby comp counts.
+
+`GET /api/agent?slug=...` resolves a roster-controlled identity with `slug`, `full_name`, `first_name`, `title`, `photo_url`, `phone`, `email`. Invalid, absent and unknown slugs fall back to `mike-mccann`. Slugs accept only lowercase letters, digits and hyphens, up to 60 characters. Names and photo URLs are never taken from query parameters. Public responses omit FUB user IDs. Profile photos allow HTTPS or local /assets/ paths; unsafe schemes are discarded.
+
+An additive migration extends the existing agents table without overwriting configured profiles or FUB IDs. The default Mike McCann identity has empty photo/contact fields until verified roster data is connected. Missing/broken photos show initials on #d9d9d9; contact links are disabled when no verified contact is available. Agent photos are exactly 72×88 on landing, 38×46 on results, and 60×72 on the error strip, with cover cropping and center-top alignment.
+
+All screen navigation retains the server-resolved `?agent=` slug. Evaluation snapshots and CMA requests store that slug, and mismatched CMA attribution is rejected server-side. Follow Up Boss delivery is still simulated; the preview clearly says requests are saved and no notification is sent. The future FUB connection must populate the roster and map each slug to its FUB user ID before real assignment is enabled.
+
+### Browser tests
+
+```sh
+npm ci --ignore-scripts
+npx playwright install chromium
+npm run test:browser
+```
+
+Browser tests start a local FastAPI instance with a temporary SQLite database, synthetic agents and a synthetic valuation provider. They never read .env or call RentCast, ATTOM or Follow Up Boss. They cover fallback slugs, query injection, valid/missing/broken images, exact avatar dimensions, loading/results identity, sliders, personalized modal/consent/confirmation, correct submitted agent_slug, tel/mailto links, error states, mobile/desktop overflow and browser errors. `CHROMIUM_PATH` optionally selects an existing Chromium; `SCREENSHOT_DIR` optionally saves review images. Both browser and Python tests run in CI.

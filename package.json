@@ -1,0 +1,6 @@
+{
+  "name": "mccann-portfolio-evaluator-ui-tests",
+  "private": true,
+  "scripts": {"test:browser": "node tests/browser.cjs"},
+  "devDependencies": {"playwright": "1.62.1"}
+}

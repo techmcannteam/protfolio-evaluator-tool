@@ -66,6 +66,33 @@ class Repository:
             for statement in SCHEMA.split(";"):
                 if statement.strip():
                     db.execute(statement)
+            # Additive migration preserves existing roster and future FUB mappings.
+            columns = ["full_name", "first_name", "title", "photo_url", "phone"]
+            existing = (
+                set()
+                if self.postgres
+                else {
+                    r["name"]
+                    for r in db.execute("PRAGMA table_info(agents)").fetchall()
+                }
+            )
+            for column in columns:
+                if self.postgres or column not in existing:
+                    optional = "IF NOT EXISTS " if self.postgres else ""
+                    db.execute(
+                        f"ALTER TABLE agents ADD COLUMN {optional}{column} TEXT NOT NULL DEFAULT ''"
+                    )
+            db.execute(
+                "INSERT INTO agents(slug,name,email,full_name,first_name,title) VALUES(?,?,?,?,?,?) ON CONFLICT(slug) DO NOTHING",
+                (
+                    "mike-mccann",
+                    "Mike McCann",
+                    "",
+                    "Mike McCann",
+                    "Mike",
+                    "The Mike McCann Team · Keller Williams",
+                ),
+            )
             for slug, name in [
                 ("test-ben", "Ben — Test Agent"),
                 ("test-nicole", "Nicole — Test Agent"),
@@ -84,6 +111,11 @@ class Repository:
                     "SELECT slug,name FROM agents ORDER BY slug"
                 ).fetchall()
             ]
+
+    def agent(self, slug):
+        with self.transaction() as db:
+            row = db.execute("SELECT * FROM agents WHERE slug=?", (slug,)).fetchone()
+            return dict(row) if row else None
 
     def agent_exists(self, slug):
         return any(x["slug"] == slug for x in self.agents())

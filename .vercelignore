@@ -8,3 +8,7 @@ __pycache__
 tests
 seed
 comparison-output
+
+node_modules
+package.json
+package-lock.json
