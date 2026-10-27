@@ -50,7 +50,10 @@ def create_app(settings=None, repository=None, providers=None):
     )
     frontend = Path(__file__).resolve().parents[1] / "frontend"
     app.mount("/assets", StaticFiles(directory=frontend / "assets"), name="assets")
-    app.mount("/agents", StaticFiles(directory=frontend.parent / "public" / "agents"), name="agent-photos")
+    # Vercel serves public/ through its CDN, outside the function bundle.
+    agent_photos = frontend.parent / "public" / "agents"
+    if agent_photos.is_dir():
+        app.mount("/agents", StaticFiles(directory=agent_photos), name="agent-photos")
     app.state.repository = repository
     # Same-origin by default; configure an explicit frontend allowlist when needed.
     import os

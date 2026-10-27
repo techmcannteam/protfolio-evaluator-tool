@@ -563,3 +563,19 @@ def test_record_lookup_reuses_provider_and_does_not_evaluate(setup):
 
     with TestClient(create_app(settings, repo, [RecordProvider()])) as client:
         assert client.post('/api/property-record', json={'address': ADDRESS}).json() == {'property_type': 'Townhouse'}
+
+
+def test_startup_without_public_directory_in_function_bundle(setup, monkeypatch):
+    from pathlib import Path
+
+    from fastapi.testclient import TestClient
+
+    from backend.main import create_app
+
+    _, repo, settings = setup
+    original = Path.is_dir
+    monkeypatch.setattr(Path, 'is_dir', lambda path: False if path.name == 'agents' else original(path))
+    with TestClient(create_app(settings, repo, [Provider()])) as client:
+        assert client.get('/evaluator').status_code == 200
+        assert client.get('/health').status_code == 200
+        assert client.get('/agents/mike-mccann.jpg').status_code == 404
