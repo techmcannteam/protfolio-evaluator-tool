@@ -154,3 +154,8 @@ vite.config.ts.timestamp-*
 .venv/
 *.sqlite3
 comparison-output/
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
