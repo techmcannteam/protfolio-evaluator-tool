@@ -1,0 +1,474 @@
+{
+  "2456 Sepviva St, Philadelphia, PA 19125": [
+    {
+      "provider": "rentcast",
+      "cached": true,
+      "status": "historical_fixture",
+      "value": {
+        "estimate": 317000.0,
+        "low": 261000.0,
+        "high": 374000.0,
+        "confidence": null
+      },
+      "details": {
+        "formattedAddress": "2456 Sepviva St, Philadelphia, PA 19125",
+        "propertyType": "Townhouse",
+        "bedrooms": 3,
+        "bathrooms": 1,
+        "squareFootage": 926,
+        "yearBuilt": 1875,
+        "lastSaleDate": "2025-12-09T00:00:00.000Z",
+        "lastSalePrice": 185000
+      },
+      "rent": {
+        "estimate": 2070.0,
+        "low": 1730.0,
+        "high": 2420.0,
+        "confidence": null
+      }
+    },
+    {
+      "provider": "attom",
+      "cached": true,
+      "status": "historical_fixture",
+      "value": {
+        "estimate": 371211.0,
+        "low": 337998.0,
+        "high": 404424.0,
+        "confidence": 0,
+        "raw_confidence": 91.0,
+        "fsd": 9.0
+      },
+      "rent": {
+        "estimate": 2383.0,
+        "low": null,
+        "high": null,
+        "confidence": null,
+        "raw_confidence": null,
+        "fsd": null
+      }
+    }
+  ],
+  "2318 E Letterly St, Philadelphia, PA 19125": [
+    {
+      "provider": "rentcast",
+      "cached": true,
+      "status": "historical_fixture",
+      "value": {
+        "estimate": 243000.0,
+        "low": 195000.0,
+        "high": 291000.0,
+        "confidence": null
+      },
+      "details": {
+        "formattedAddress": "2318 E Letterly St, Philadelphia, PA 19125",
+        "propertyType": "Townhouse",
+        "bedrooms": 2,
+        "bathrooms": 1,
+        "squareFootage": 846,
+        "yearBuilt": 1875,
+        "lastSaleDate": "2026-07-02T00:00:00.000Z",
+        "lastSalePrice": 346000
+      },
+      "rent": {
+        "estimate": 1810.0,
+        "low": 1590.0,
+        "high": 2030.0,
+        "confidence": null
+      }
+    },
+    {
+      "provider": "attom",
+      "cached": true,
+      "status": "historical_fixture",
+      "rent": {
+        "estimate": 2773.0,
+        "low": null,
+        "high": null,
+        "confidence": null,
+        "raw_confidence": null,
+        "fsd": null
+      }
+    }
+  ],
+  "2651 Edgemont St, Philadelphia, PA 19125": [
+    {
+      "provider": "rentcast",
+      "cached": true,
+      "status": "historical_fixture",
+      "value": {
+        "estimate": 207000.0,
+        "low": 152000.0,
+        "high": 261000.0,
+        "confidence": null
+      },
+      "details": {
+        "formattedAddress": "2651 Edgemont St, Philadelphia, PA 19125",
+        "propertyType": "Townhouse",
+        "bedrooms": 2,
+        "bathrooms": 1,
+        "squareFootage": 700,
+        "yearBuilt": 1875,
+        "lastSaleDate": "2002-07-12T00:00:00.000Z",
+        "lastSalePrice": 32500
+      },
+      "rent": {
+        "estimate": 1530.0,
+        "low": 1190.0,
+        "high": 1860.0,
+        "confidence": null
+      }
+    },
+    {
+      "provider": "attom",
+      "cached": true,
+      "status": "historical_fixture",
+      "value": {
+        "estimate": 297814.0,
+        "low": 255184.0,
+        "high": 340444.0,
+        "confidence": 0,
+        "raw_confidence": 86.0,
+        "fsd": 14.0
+      },
+      "rent": {
+        "estimate": 2167.0,
+        "low": null,
+        "high": null,
+        "confidence": null,
+        "raw_confidence": null,
+        "fsd": null
+      }
+    }
+  ],
+  "1634 S Clarion St, Philadelphia, PA 19148": [
+    {
+      "provider": "rentcast",
+      "cached": true,
+      "status": "historical_fixture",
+      "value": {
+        "estimate": 385000.0,
+        "low": 291000.0,
+        "high": 479000.0,
+        "confidence": null
+      },
+      "details": {
+        "formattedAddress": "1634 S Clarion St, Philadelphia, PA 19148",
+        "propertyType": "Townhouse",
+        "bedrooms": 2,
+        "bathrooms": 1.5,
+        "squareFootage": 1008,
+        "yearBuilt": 1925,
+        "lastSaleDate": "2018-02-12T00:00:00.000Z",
+        "lastSalePrice": 371150
+      },
+      "rent": {
+        "estimate": 2090.0,
+        "low": 1670.0,
+        "high": 2500.0,
+        "confidence": null
+      }
+    },
+    {
+      "provider": "attom",
+      "cached": true,
+      "status": "historical_fixture",
+      "value": {
+        "estimate": 477281.0,
+        "low": 466184.0,
+        "high": 488378.0,
+        "confidence": 0,
+        "raw_confidence": 98.0,
+        "fsd": 2.0
+      },
+      "rent": {
+        "estimate": 2840.0,
+        "low": null,
+        "high": null,
+        "confidence": null,
+        "raw_confidence": null,
+        "fsd": null
+      }
+    }
+  ],
+  "627 Fernon St, Philadelphia, PA 19148": [
+    {
+      "provider": "rentcast",
+      "cached": true,
+      "status": "historical_fixture",
+      "value": {
+        "estimate": 301000.0,
+        "low": 238000.0,
+        "high": 363000.0,
+        "confidence": null
+      },
+      "details": {
+        "formattedAddress": "627 Fernon St, Philadelphia, PA 19148",
+        "propertyType": "Townhouse",
+        "bedrooms": 2,
+        "bathrooms": 1,
+        "squareFootage": 1148,
+        "yearBuilt": 1920,
+        "lastSaleDate": "2026-04-06T00:00:00.000Z",
+        "lastSalePrice": 300000
+      },
+      "rent": {
+        "estimate": 2000.0,
+        "low": 1760.0,
+        "high": 2240.0,
+        "confidence": null
+      }
+    },
+    {
+      "provider": "attom",
+      "cached": true,
+      "status": "historical_fixture",
+      "value": {
+        "estimate": 301295.0,
+        "low": 262027.0,
+        "high": 340563.0,
+        "confidence": 0,
+        "raw_confidence": 87.0,
+        "fsd": 13.0
+      },
+      "rent": {
+        "estimate": 2108.0,
+        "low": null,
+        "high": null,
+        "confidence": null,
+        "raw_confidence": null,
+        "fsd": null
+      }
+    }
+  ],
+  "219 S 18th St Unit 902, Philadelphia, PA 19103": [
+    {
+      "provider": "rentcast",
+      "cached": true,
+      "status": "historical_fixture",
+      "value": {
+        "estimate": 309000.0,
+        "low": 208000.0,
+        "high": 409000.0,
+        "confidence": null
+      },
+      "details": {
+        "formattedAddress": "219 S 18th St, Unit 902, Philadelphia, PA 19103",
+        "propertyType": "Condo"
+      },
+      "rent": {
+        "estimate": 2190.0,
+        "low": 1800.0,
+        "high": 2580.0,
+        "confidence": null
+      }
+    },
+    {
+      "provider": "attom",
+      "cached": true,
+      "status": "historical_fixture",
+      "value": {
+        "estimate": 290624.0,
+        "low": 286254.0,
+        "high": 294994.0,
+        "confidence": 0,
+        "raw_confidence": 98.0,
+        "fsd": 2.0
+      },
+      "rent": {
+        "estimate": 1767.0,
+        "low": null,
+        "high": null,
+        "confidence": null,
+        "raw_confidence": null,
+        "fsd": null
+      }
+    }
+  ],
+  "106 Argyle Rd, Ardmore, PA 19003": [
+    {
+      "provider": "rentcast",
+      "cached": true,
+      "status": "historical_fixture",
+      "value": {
+        "estimate": 1071000.0,
+        "low": 746000.0,
+        "high": 1395000.0,
+        "confidence": null
+      },
+      "details": {
+        "formattedAddress": "106 Argyle Rd, Ardmore, PA 19003",
+        "propertyType": "Single Family",
+        "bedrooms": 7,
+        "bathrooms": 2,
+        "squareFootage": 3178,
+        "yearBuilt": 1900,
+        "lastSaleDate": "2006-12-15T00:00:00.000Z",
+        "lastSalePrice": 504000
+      },
+      "rent": {
+        "estimate": 4890.0,
+        "low": 3450.0,
+        "high": 6340.0,
+        "confidence": null
+      }
+    },
+    {
+      "provider": "attom",
+      "cached": true,
+      "status": "historical_fixture",
+      "value": {
+        "estimate": 1284711.0,
+        "low": 1186903.0,
+        "high": 1382519.0,
+        "confidence": 0,
+        "raw_confidence": 92.0,
+        "fsd": 8.0
+      },
+      "rent": {
+        "estimate": 7211.0,
+        "low": null,
+        "high": null,
+        "confidence": null,
+        "raw_confidence": null,
+        "fsd": null
+      }
+    }
+  ],
+  "129 Whitemarsh Rd, Ardmore, PA 19003": [
+    {
+      "provider": "rentcast",
+      "cached": true,
+      "status": "historical_fixture",
+      "value": {
+        "estimate": 788000.0,
+        "low": 630000.0,
+        "high": 946000.0,
+        "confidence": null
+      },
+      "details": {
+        "formattedAddress": "129 Whitemarsh Rd, Ardmore, PA 19003",
+        "propertyType": "Single Family",
+        "bedrooms": 4,
+        "bathrooms": 2.5,
+        "squareFootage": 2806,
+        "yearBuilt": 1955,
+        "lastSaleDate": "2026-05-21T00:00:00.000Z",
+        "lastSalePrice": 975000
+      },
+      "rent": {
+        "estimate": 3890.0,
+        "low": 2970.0,
+        "high": 4810.0,
+        "confidence": null
+      }
+    },
+    {
+      "provider": "attom",
+      "cached": true,
+      "status": "historical_fixture",
+      "value": {
+        "estimate": 983552.0,
+        "low": 892330.0,
+        "high": 1074774.0,
+        "confidence": 0,
+        "raw_confidence": 91.0,
+        "fsd": 9.0
+      },
+      "rent": {
+        "estimate": 7241.0,
+        "low": null,
+        "high": null,
+        "confidence": null,
+        "raw_confidence": null,
+        "fsd": null
+      }
+    }
+  ],
+  "419 Locust Rd, Wayne, PA 19087": [
+    {
+      "provider": "rentcast",
+      "cached": true,
+      "status": "historical_fixture",
+      "value": {
+        "estimate": 686000.0,
+        "low": 567000.0,
+        "high": 805000.0,
+        "confidence": null
+      },
+      "details": {
+        "formattedAddress": "419 Locust Rd, Wayne, PA 19087",
+        "propertyType": "Single Family",
+        "bedrooms": 3,
+        "bathrooms": 2,
+        "squareFootage": 1211,
+        "yearBuilt": 1947,
+        "lastSaleDate": "2024-05-20T00:00:00.000Z",
+        "lastSalePrice": 650000
+      },
+      "rent": {
+        "estimate": 3130.0,
+        "low": 2380.0,
+        "high": 3890.0,
+        "confidence": null
+      }
+    },
+    {
+      "provider": "attom",
+      "cached": true,
+      "status": "historical_fixture",
+      "value": {
+        "estimate": 728584.0,
+        "low": 668399.0,
+        "high": 788769.0,
+        "confidence": 0,
+        "raw_confidence": 92.0,
+        "fsd": 8.0
+      },
+      "rent": {
+        "estimate": 5277.0,
+        "low": null,
+        "high": null,
+        "confidence": null,
+        "raw_confidence": null,
+        "fsd": null
+      }
+    }
+  ],
+  "3424 Wallace St, Philadelphia, PA 19104": [
+    {
+      "provider": "rentcast",
+      "cached": true,
+      "status": "historical_fixture",
+      "value": {
+        "estimate": 599000.0,
+        "low": 431000.0,
+        "high": 767000.0,
+        "confidence": null
+      },
+      "details": {
+        "formattedAddress": "3424 Wallace St, Philadelphia, PA 19104",
+        "propertyType": "Multi-Family",
+        "bedrooms": 4,
+        "bathrooms": 4,
+        "squareFootage": 3672,
+        "yearBuilt": 2018,
+        "lastSaleDate": "2021-10-25T00:00:00.000Z",
+        "lastSalePrice": 725000
+      }
+    },
+    {
+      "provider": "attom",
+      "cached": true,
+      "status": "historical_fixture",
+      "value": {
+        "estimate": 650000.0,
+        "low": 601910.0,
+        "high": 698090.0,
+        "confidence": 0,
+        "raw_confidence": 93.0,
+        "fsd": 7.0
+      }
+    }
+  ]
+}

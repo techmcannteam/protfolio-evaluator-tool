@@ -1,0 +1,14 @@
+.env*
+.venv
+.git
+__pycache__
+.pytest_cache
+.ruff_cache
+*.sqlite3
+tests
+seed
+comparison-output
+
+node_modules
+package.json
+package-lock.json
