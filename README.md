@@ -134,3 +134,9 @@ npm run test:browser
 ```
 
 Browser tests start a local FastAPI instance with a temporary SQLite database, synthetic agents and a synthetic valuation provider. They never read .env or call RentCast, ATTOM or Follow Up Boss. They cover fallback slugs, query injection, valid/missing/broken images, exact avatar dimensions, loading/results identity, sliders, personalized modal/consent/confirmation, correct submitted agent_slug, tel/mailto links, error states, mobile/desktop overflow and browser errors. `CHROMIUM_PATH` optionally selects an existing Chromium; `SCREENSHOT_DIR` optionally saves review images. Both browser and Python tests run in CI.
+
+### CSV property import
+
+The landing page accepts UTF-8 `.csv` files up to 100 KB. Use an `address` column with quoted full addresses, or `street,city,state,zip` columns with an optional `unit` column. A downloadable template is available on the page. Import appends unique addresses to existing entries, enforces the combined 10-property limit, and leaves entries unchanged on validation failure. Addresses remain editable; no valuation requests run until the user submits the evaluation form. Files are parsed locally in the browser.
+
+Run CSV parser tests with `npm run test:csv`; the browser suite also covers import and subsequent evaluation with agent attribution.

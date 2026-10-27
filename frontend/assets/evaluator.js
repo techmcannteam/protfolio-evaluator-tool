@@ -1,7 +1,8 @@
+import {mergeCsv, MAX_CSV_BYTES} from './csv.mjs';
 const main = document.querySelector('#main');
 const dialog = document.querySelector('#cma-dialog');
 const DEFAULT_AGENT = {slug:'mike-mccann',full_name:'Mike McCann',first_name:'Mike',title:'The Mike McCann Team · Keller Williams',photo_url:'',phone:'',email:''};
-const state = {agent:DEFAULT_AGENT, addresses:[''], result:null, screen:'landing', assumptions:null, defaults:null, submitted:null, ready:false};
+const state = {agent:DEFAULT_AGENT, addresses:[''], result:null, screen:'landing', assumptions:null, defaults:null, submitted:null, ready:false, csvBusy:false, csvMessage:'', csvError:false};
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money = value => value == null ? 'Unavailable' : new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(value);
 const compact = value => value == null ? 'Range unavailable' : value >= 1000000 ? `$${(value/1000000).toFixed(2)}M` : `$${Math.round(value/1000)}K`;
@@ -30,7 +31,7 @@ function hero(title,kicker,subtitle='',results=false) {return `<section class="h
 function footer(){return `<footer class="footer">${logo}<span class="serif">The Mike McCann Team</span><span class="eyebrow">Keller Williams Empower · Philadelphia &amp; Main Line</span><p>Each office is independently owned and operated. Equal Housing Opportunity.</p></footer>`;}
 function contact(light=false){return `<div class="contact">${state.agent.phone?`<a class="button outline ${light?'white':''}" href="tel:${escape(state.agent.phone.replace(/[^+\d]/g,''))}">Call ${first()}</a>`:`<button class="button outline ${light?'white':''}" disabled>Call ${first()}</button>`}${state.agent.email?`<a class="button outline ${light?'white':''}" href="mailto:${escape(state.agent.email)}">Email ${first()}</a>`:`<button class="button outline ${light?'white':''}" disabled>Email ${first()}</button>`}${!state.agent.phone&&!state.agent.email?'<p class="hint">Agent contact details are not available yet.</p>':''}</div>`;}
 function addressFields(){return state.addresses.map((a,i)=>`<div class="field"><label for="address-${i}">Property ${i+1} *</label><div class="input-wrap"><input class="address" id="address-${i}" name="address-${i}" data-address="${i}" type="text" maxlength="250" required autocomplete="street-address" placeholder="Street, city, state and ZIP" value="${escape(a)}">${i?`<button class="remove" type="button" data-remove="${i}" aria-label="Remove property ${i+1}">×</button>`:''}</div></div>`).join('');}
-function landing(){return hero("What's your portfolio worth?",'Free portfolio check','See value, rent and return for up to 10 properties. No sign-up.')+agentStrip()+`<section class="content"><div class="intro"><h2>Your Properties</h2><p>Enter each full address, including city, state, ZIP and unit number.</p></div><form id="evaluate-form"><div class="fields">${addressFields()}</div><div class="actions"><button class="button outline small" type="button" data-action="add">+ Add another property</button><span class="hint">${state.addresses.length} of 10</span></div><p id="address-error" class="error-message" role="alert"></p><div class="submit-block"><button class="button" type="submit" ${!state.ready?'disabled':''}>See what it's worth</button><span class="hint">Free · No sign-up · Results in seconds</span></div></form></section>`+footer();}
+function landing(){return hero("What's your portfolio worth?",'Free portfolio check','See value, rent and return for up to 10 properties. No sign-up.')+agentStrip()+`<section class="content"><div class="intro"><h2>Your Properties</h2><p>Enter each full address, including city, state, ZIP and unit number.</p></div><div class="csv-import"><button type="button" class="button outline" data-action="csv">Upload a CSV</button><input id="csv-file" type="file" accept=".csv,text/csv" hidden aria-label="Upload property CSV"><p class="hint">Add addresses from a spreadsheet, up to 10 properties total. Your existing addresses stay in place.</p><a href="/assets/property-template.csv" download="mccann-property-template.csv">Download sample CSV</a><details><summary>CSV format help</summary><p class="hint">Use an <b>address</b> column with each full address in double quotes, or separate <b>street, city, state, zip</b> columns and an optional <b>unit</b> column. Save as UTF-8 CSV, up to 100 KB. Review and edit the imported addresses below before evaluating.</p></details><p id="csv-feedback" class="${state.csvError?'error-message':'hint'}" role="status" aria-live="polite">${escape(state.csvMessage)}</p></div><form id="evaluate-form"><div class="fields">${addressFields()}</div><div class="actions"><button class="button outline small" type="button" data-action="add">+ Add another property</button><span class="hint">${state.addresses.length} of 10</span></div><p id="address-error" class="error-message" role="alert"></p><div class="submit-block"><button class="button" type="submit" ${!state.ready?'disabled':''}>See what it's worth</button><span class="hint">Free · No sign-up · Results in seconds</span></div></form></section>`+footer();}
 function loading(){return `<section class="fullscreen"><header>${logo}</header><div class="body" role="status"><span class="eyebrow">Your portfolio check</span><h1>Let's Run the Numbers</h1><p>Checking your properties for ${full()}.</p><div class="progress" style="width:100%" aria-hidden="true"></div><div class="steps">Finding your properties<br>Checking value and rent estimates<br>Calculating your portfolio returns</div><p class="hint">This may take a moment. No need to resubmit.</p></div></section>`;}
 const specs = p => [p.details.bedrooms!=null?`${p.details.bedrooms} BD`:null,p.details.bathrooms!=null?`${p.details.bathrooms} BA`:null,p.details.squareFootage!=null?`${Number(p.details.squareFootage).toLocaleString()} SQ.FT.`:null].filter(Boolean).join(' | ');
 function operating(p){
@@ -78,7 +79,7 @@ async function api(path,body){
  return data;
 }
 async function evaluate(){
- if(state.screen==='loading')return;
+ if(state.screen==='loading'||state.csvBusy)return;
  const addresses=state.addresses.map(a=>a.trim()).filter(Boolean);
  if(!addresses.length){if(state.screen!=='landing')navigate('landing');document.querySelector('#address-error').textContent='Add a full property address to continue.';return;}
  if(addresses.length>10){navigate('too-many');return;}
@@ -112,12 +113,37 @@ main.addEventListener('input',event=>{
  if(event.target.matches('[data-address]'))state.addresses[Number(event.target.dataset.address)]=event.target.value;
  if(event.target.matches('[data-assumption]')){state.assumptions[event.target.dataset.assumption]=Number(event.target.value)/100;updateRates();}
 });
+main.addEventListener('change', async event=>{
+ if(event.target.id!=='csv-file')return;
+ const input=event.target, file=input.files[0];
+ if(!file||state.csvBusy)return;
+ state.csvBusy=true;
+ const upload=main.querySelector('[data-action="csv"]'), submit=main.querySelector('#evaluate-form [type="submit"]');
+ upload.disabled=true;submit.disabled=true;upload.textContent='Reading CSV…';
+ try{
+  if(!/\.csv$/i.test(file.name))throw new Error('Choose a .csv file. Export Excel workbooks as CSV first.');
+  if(file.size>MAX_CSV_BYTES)throw new Error('Choose a CSV file smaller than 100 KB.');
+  const text=new TextDecoder('utf-8',{fatal:true}).decode(await file.arrayBuffer());
+  if(state.screen!=='landing')return;
+  const result=mergeCsv(text,state.addresses);
+  state.addresses=result.addresses;
+  state.csvError=false;
+  state.csvMessage=`${result.added} ${result.added===1?'property':'properties'} imported.${result.duplicates?` ${result.duplicates} duplicate ${result.duplicates===1?'row was':'rows were'} skipped.`:''} Review the addresses below, then select “See what it's worth”.`;
+ }catch(error){
+  state.csvError=true;
+  state.csvMessage=error instanceof TypeError?'Save the file as UTF-8 CSV and try again.':error.message;
+ }finally{
+  state.csvBusy=false;input.value='';
+  if(state.screen==='landing'){render();main.querySelector('[data-action="csv"]').focus();}
+ }
+});
 main.addEventListener('submit',event=>{if(event.target.id==='evaluate-form'){event.preventDefault();evaluate();}});
 main.addEventListener('click',event=>{
  const target=event.target.closest('[data-action],[data-screen],[data-remove]');if(!target)return;
  if(target.dataset.screen){event.preventDefault();navigate(target.dataset.screen);return;}
  if(target.dataset.remove){state.addresses.splice(Number(target.dataset.remove),1);render();return;}
  const action=target.dataset.action;
+ if(action==='csv'){document.querySelector('#csv-file').click();}
  if(action==='add'){if(state.addresses.length>=10){navigate('too-many');return;}state.addresses.push('');render();document.getElementById(`address-${state.addresses.length-1}`).focus();}
  if(action==='landing')navigate('landing');
  if(action==='retry'){if(!state.ready){boot();}else{evaluate();}}

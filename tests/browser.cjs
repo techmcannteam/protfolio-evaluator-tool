@@ -38,6 +38,18 @@ const check=(label)=>{passed++;console.log('PASS',label);};
  }
  check('Empty and broken photos show initials on gray');
  await page.goto(base+'/evaluator?agent=jane-agent');await page.waitForSelector('#address-0');
+ let evaluationCalls=0;const countEvaluation=r=>{if(r.url().includes('/api/evaluate'))evaluationCalls++;};page.on('request',countEvaluation);
+ await page.fill('#address-0','2214 Fitzwater St, Philadelphia, PA 19146');
+ const upload=async text=>{await page.locator('#csv-file').setInputFiles({name:'properties.csv',mimeType:'text/csv',buffer:Buffer.from(text)});await page.waitForFunction(()=>!document.querySelector('[data-action="csv"]').disabled);};
+ await upload('address\n"2456 Sepviva St, Philadelphia, PA 19125"\n"2214 Fitzwater St, Philadelphia, PA 19146"');
+ assert.equal(await page.locator('[data-address]').count(),2);assert.match(await page.locator('#csv-feedback').innerText(),/1.*duplicate/i);assert.equal(evaluationCalls,0);
+ await upload('address\n<script>');assert.equal(await page.locator('[data-address]').count(),2);assert.match(await page.locator('#csv-feedback').innerText(),/CSV row 2/);
+ const csvSent=page.waitForRequest(r=>r.url().includes('/api/evaluate'));
+ await page.getByRole('button',{name:"See what it's worth"}).click();
+ assert.equal((await csvSent).postDataJSON().addresses.length,2);
+ await page.getByRole('heading',{name:"Here's What It's Worth"}).waitFor();assert.equal(new URL(page.url()).searchParams.get('agent'),'jane-agent');page.off('request',countEvaluation);
+ check('CSV append, duplicates, invalid-file preservation, review before evaluation and agent continuity');
+ await page.goto(base+'/evaluator?agent=jane-agent');await page.waitForSelector('#address-0');
  await page.fill('#address-0','2214 Fitzwater St, Philadelphia, PA 19146');
  await page.route('**/api/evaluate?*',async route=>{const response=await route.fetch();await new Promise(r=>setTimeout(r,250));await route.fulfill({response});});
  await page.getByRole('button',{name:"See what it's worth"}).click();
