@@ -1,3 +1,4 @@
+import {installAutocomplete} from './autocomplete.mjs';
 import {mergeCsv, MAX_CSV_BYTES} from './csv.mjs';
 const main = document.querySelector('#main');
 const dialog = document.querySelector('#cma-dialog');
@@ -64,6 +65,7 @@ function confirmation(){const s=state.submitted;return `<section class="fullscre
 function render(){
  main.innerHTML=state.screen==='landing'?landing():state.screen==='loading'?loading():state.screen==='results'&&state.result?results():state.screen==='confirmation'&&state.submitted?confirmation():errorScreen();
  installPhotos(main);
+ installAutocomplete(main);
  document.title=`Portfolio Evaluator · ${state.screen==='results'?'Your results':state.screen==='confirmation'?'Request saved':state.screen==='landing'?'Add your properties':'Your portfolio check'}`;
 }
 function navigate(screen,replace=false){state.screen=screen;history[replace?'replaceState':'pushState']({screen},'',internal(screen));render();window.scrollTo(0,0);main.focus({preventScroll:true});}

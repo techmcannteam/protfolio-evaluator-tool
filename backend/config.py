@@ -32,6 +32,9 @@ class Settings:
     attom_key: str = field(
         default_factory=lambda: os.getenv("ATTOM_API_KEY", ""), repr=False
     )
+    google_places_key: str = field(
+        default_factory=lambda: os.getenv("GOOGLE_PLACES_API_KEY", ""), repr=False
+    )
     enable_attom: bool = field(
         default_factory=lambda: os.getenv("ENABLE_ATTOM", "false").lower() == "true"
     )

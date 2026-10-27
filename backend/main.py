@@ -15,6 +15,7 @@ from .agents import resolve_agent
 from .config import DISCLAIMER, Settings
 from .follow_up_boss import pushToFUB
 from .models import CMARequest, EvaluateRequest
+from .places import lookup
 from .providers.attom import Attom
 from .providers.base import Transport
 from .providers.rentcast import RentCast
@@ -105,7 +106,7 @@ def create_app(settings=None, repository=None, providers=None):
         now = time.time()
         if not repository.consume(
             f"ip:{category}:{fingerprint}:{int(now // 3600)}",
-            settings.rate_limit if category == "evaluate" else 5,
+            settings.rate_limit if category == "evaluate" else (120 if category == "places" else 5),
         ):
             raise HTTPException(
                 429,
@@ -127,6 +128,31 @@ def create_app(settings=None, repository=None, providers=None):
     @app.get("/evaluator", include_in_schema=False)
     def frontend_page():
         return FileResponse(frontend / "index.html")
+
+    def places_limit(request):
+        if not settings.google_places_key:
+            raise HTTPException(503, "Address suggestions are unavailable. Enter the full address manually.")
+        limit(request, "places")
+        if not repository.consume(f"places:daily:{int(time.time() // 86400)}", 1000):
+            raise HTTPException(429, "Address suggestions have reached today's limit. Enter the full address manually.")
+
+    @app.get("/api/address-suggestions")
+    def address_suggestions(
+        request: Request,
+        q: str = Query(min_length=4, max_length=250),
+        token: str = Query(pattern=r"^[a-zA-Z0-9_-]{16,36}$"),
+    ):
+        places_limit(request)
+        return lookup(settings.google_places_key, token, query=q)
+
+    @app.get("/api/address-details")
+    def address_details(
+        request: Request,
+        place_id: str = Query(pattern=r"^[a-zA-Z0-9_-]{1,255}$"),
+        token: str = Query(pattern=r"^[a-zA-Z0-9_-]{16,36}$"),
+    ):
+        places_limit(request)
+        return lookup(settings.google_places_key, token, place_id=place_id)
 
     @app.get("/api/agent")
     def agent_profile(slug: str | None = None):

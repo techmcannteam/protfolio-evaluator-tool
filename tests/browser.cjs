@@ -38,6 +38,15 @@ const check=(label)=>{passed++;console.log('PASS',label);};
  }
  check('Empty and broken photos show initials on gray');
  await page.goto(base+'/evaluator?agent=jane-agent');await page.waitForSelector('#address-0');
+ await page.route('**/api/address-suggestions?*',route=>route.fulfill({json:{suggestions:[{id:'test-place',label:'2456 Sepviva St, Philadelphia, PA'}]}}));
+ await page.route('**/api/address-details?*',route=>route.fulfill({json:{address:'2456 Sepviva St, Philadelphia, PA 19125'}}));
+ await page.fill('#address-0','2456 Sep');await page.getByRole('option').waitFor();
+ await page.locator('#address-0').press('ArrowDown');await page.locator('#address-0').press('Enter');
+ await page.waitForFunction(()=>document.querySelector('#address-0').value.endsWith('19125'));
+ assert.equal(await page.locator('#address-0').inputValue(),'2456 Sepviva St, Philadelphia, PA 19125');
+ assert.equal(new URL(page.url()).searchParams.get('agent'),'jane-agent');
+ await page.unroute('**/api/address-suggestions?*');await page.unroute('**/api/address-details?*');
+ check('Address suggestions support keyboard selection, ZIP completion and agent continuity');
  let evaluationCalls=0;const countEvaluation=r=>{if(r.url().includes('/api/evaluate'))evaluationCalls++;};page.on('request',countEvaluation);
  await page.fill('#address-0','2214 Fitzwater St, Philadelphia, PA 19146');
  const upload=async text=>{await page.locator('#csv-file').setInputFiles({name:'properties.csv',mimeType:'text/csv',buffer:Buffer.from(text)});await page.waitForFunction(()=>!document.querySelector('[data-action="csv"]').disabled);};
