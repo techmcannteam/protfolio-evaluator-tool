@@ -147,3 +147,10 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+.env*
+!.env.example
+.vercel/
+.venv/
+*.sqlite3
+comparison-output/
