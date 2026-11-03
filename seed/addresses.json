@@ -1,0 +1,42 @@
+[
+  {
+    "address": "2456 Sepviva St, Philadelphia, PA 19125",
+    "property_type": "Townhouse"
+  },
+  {
+    "address": "2318 E Letterly St, Philadelphia, PA 19125",
+    "property_type": "Townhouse"
+  },
+  {
+    "address": "2651 Edgemont St, Philadelphia, PA 19125",
+    "property_type": "Townhouse"
+  },
+  {
+    "address": "1634 S Clarion St, Philadelphia, PA 19148",
+    "property_type": "Townhouse"
+  },
+  {
+    "address": "627 Fernon St, Philadelphia, PA 19148",
+    "property_type": "Townhouse"
+  },
+  {
+    "address": "219 S 18th St Unit 902, Philadelphia, PA 19103",
+    "property_type": "Condo"
+  },
+  {
+    "address": "106 Argyle Rd, Ardmore, PA 19003",
+    "property_type": "Single Family"
+  },
+  {
+    "address": "129 Whitemarsh Rd, Ardmore, PA 19003",
+    "property_type": "Single Family"
+  },
+  {
+    "address": "419 Locust Rd, Wayne, PA 19087",
+    "property_type": "Single Family"
+  },
+  {
+    "address": "3424 Wallace St, Philadelphia, PA 19104",
+    "property_type": "Multi-Family"
+  }
+]
