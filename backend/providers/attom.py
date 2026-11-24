@@ -64,7 +64,6 @@ class Attom:
         if value["status"] in (
             "provider_auth_error",
             "provider_rate_limited",
-            "budget_exhausted",
         ):
             return {"provider": self.name, **value}
         rent = self.transport.get(

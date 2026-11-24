@@ -22,6 +22,9 @@ def blend(sources, metric):
     ]
     if not valid:
         return None
+    scopes = {x.get("scope") for x in valid}
+    if len(scopes) > 1:
+        return None
     estimate = median(x["estimate"] for x in valid)
     lows = [x["low"] for x in valid if number(x.get("low"))]
     highs = [x["high"] for x in valid if number(x.get("high"))]
@@ -32,11 +35,17 @@ def blend(sources, metric):
     confidence = "medium"
     if spread > 0.20 or any(s < 0.6 for s in scores):
         confidence = "low"
-    elif len(valid) > 1 and spread <= 0.1 and all(s >= 0.8 for s in scores):
+    elif (
+        len({s["provider"] for s in sources if s.get(metric)}) > 1
+        and spread <= 0.1
+        and len(scores) == len(valid)
+        and all(s >= 0.8 for s in scores)
+    ):
         confidence = "high"
     if any(x.get("match_warning") for x in sources):
         confidence = "low"
     return {
+        **({"scope": valid[0]["scope"]} if valid[0].get("scope") else {}),
         "estimate": round(estimate, 2),
         "low": min(lows) if lows else None,
         "high": max(highs) if highs else None,
@@ -49,8 +58,38 @@ def blend(sources, metric):
     }
 
 
+def sum_unit_rents(units):
+    """Sum verified counts and unit-scoped AVMs; missing bounds remain missing."""
+    if not units or any(
+        not isinstance(u.get("count"), int)
+        or isinstance(u["count"], bool)
+        or u["count"] <= 0
+        or not u.get("metric")
+        or u["metric"].get("scope") != "unit"
+        or number(u["metric"].get("estimate")) is None
+        for u in units
+    ):
+        return None
+    result = {
+        "scope": "building",
+        "confidence": None,
+        "range_method": "sum_of_unit_ranges",
+    }
+    for field in ("estimate", "low", "high"):
+        result[field] = (
+            round(sum(u["count"] * u["metric"][field] for u in units), 2)
+            if all(number(u["metric"].get(field)) is not None for u in units)
+            else None
+        )
+    return result
+
+
 def calculate(sources, details, assumptions):
     value, rent = blend(sources, "value"), blend(sources, "rent")
+    if rent and rent.get("scope") not in (None, "building"):
+        rent = None
+    if value and value.get("scope") not in (None, "building"):
+        value = None
     expenses = None
     if value and rent:
         annual = rent["estimate"] * 12

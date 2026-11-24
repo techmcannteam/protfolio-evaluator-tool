@@ -1,4 +1,4 @@
-import {propertyType, propertyRow} from './properties.mjs';
+import {propertyType, propertyRow, ownerInputs} from './properties.mjs';
 // CSV is parsed locally; only reviewed addresses are sent for evaluation.
 export const MAX_CSV_BYTES = 100 * 1024;
 const aliases = {street:'st',avenue:'ave',road:'rd',lane:'ln',drive:'dr',boulevard:'blvd',terrace:'ter',circle:'cir',court:'ct',place:'pl',pennsylvania:'pa',apartment:'unit',apt:'unit',suite:'unit'};
@@ -60,7 +60,12 @@ export function mergeCsv(text, existing=[]) {
     const type=propertyType(rawType);
     if(rawType&&!type)throw new Error(`CSV row ${i+1}: property_type must be House, Rowhome / townhouse, Condo or 2–4 unit.`);
     if(!['','yes','no'].includes(rawRental))throw new Error(`CSV row ${i+1}: is_rental must be yes or no.`);
-    imported.push({address,property_type:type,is_rental:rawRental==='yes'});
+    const owner={};
+    for(const key of ['unit_count','residential_unit_count','owner_source','actual_monthly_rent']){
+      const column=find(key.replaceAll('_',''));
+      if(column>=0&&row[column].trim())owner[key]=row[column].trim();
+    }
+    imported.push({address,property_type:type,is_rental:rawRental==='yes',...ownerInputs(owner)});
   }
   const properties=existing.map(propertyRow).filter(p=>p.address.trim()), seen=new Set(properties.map(p=>addressKey(p.address)));
   let added=0,duplicates=0;

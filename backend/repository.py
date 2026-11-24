@@ -66,6 +66,19 @@ class Repository:
             for statement in SCHEMA.split(";"):
                 if statement.strip():
                     db.execute(statement)
+            call_columns = (
+                set()
+                if self.postgres
+                else {
+                    r["name"]
+                    for r in db.execute("PRAGMA table_info(provider_calls)").fetchall()
+                }
+            )
+            if self.postgres or "http_status" not in call_columns:
+                optional = "IF NOT EXISTS " if self.postgres else ""
+                db.execute(
+                    f"ALTER TABLE provider_calls ADD COLUMN {optional}http_status INTEGER"
+                )
             # Additive migration preserves existing roster and future FUB mappings.
             columns = ["full_name", "first_name", "title", "photo_url", "phone"]
             existing = (
@@ -153,6 +166,7 @@ class Repository:
             if row["lease_until"] > now:
                 return "busy", None, None
             if not self._consume(db, f"budget:{provider}:{int(now // 86400)}", budget):
+                self._log(db, provider, address, endpoint, False, "budget_exhausted")
                 return "budget_exhausted", None, None
             token = str(uuid.uuid4())
             db.execute(
@@ -165,7 +179,7 @@ class Repository:
     @staticmethod
     def _log(db, provider, address, endpoint, cached, status, token=None):
         db.execute(
-            "INSERT INTO provider_calls VALUES(?,?,?,?,?,?,?)",
+            "INSERT INTO provider_calls(id,provider,address,endpoint,cached,status,timestamp) VALUES(?,?,?,?,?,?,?)",
             (
                 token or str(uuid.uuid4()),
                 provider,
@@ -184,9 +198,35 @@ class Repository:
                 (json.dumps(payload), time.time() + ttl, key, token),
             )
             db.execute(
-                "UPDATE provider_calls SET status=? WHERE id=?",
-                (payload["status"], token),
+                "UPDATE provider_calls SET status=?,http_status=? WHERE id=?",
+                (payload["status"], payload.get("http_status"), token),
             )
+
+    def cache_entries(self, keys):
+        if not keys:
+            return {}
+        with self.transaction() as db:
+            rows = db.execute(
+                "SELECT * FROM provider_cache WHERE cache_key IN ("
+                + ",".join("?" for _ in keys)
+                + ")",
+                tuple(keys),
+            ).fetchall()
+        return {
+            r["cache_key"]: {
+                **dict(r),
+                "payload": json.loads(r["payload"]) if r["payload"] else None,
+            }
+            for r in rows
+        }
+
+    def provider_usage(self, provider):
+        with self.transaction() as db:
+            row = db.execute(
+                "SELECT count FROM counters WHERE counter_key=?",
+                (f"budget:{provider}:{int(time.time() // 86400)}",),
+            ).fetchone()
+        return row["count"] if row else 0
 
     def save_estimate(self, address, agent, payload):
         identifier = str(uuid.uuid4())

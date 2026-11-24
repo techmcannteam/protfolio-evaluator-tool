@@ -2,7 +2,14 @@ import re
 import unicodedata
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 from .config import Assumptions
 
@@ -46,6 +53,13 @@ class Model(BaseModel):
     )
 
 
+class UnitType(Model):
+    count: int = Field(ge=1, le=500, strict=True)
+    bedrooms: int = Field(ge=0, le=30, strict=True)
+    bathrooms: float = Field(gt=0, le=30)
+    square_footage: float | None = Field(None, gt=0, le=100000)
+
+
 class PropertyInput(Model):
     is_rental: bool = False
     address: str = Field(min_length=10, max_length=250)
@@ -57,9 +71,40 @@ class PropertyInput(Model):
             "Multi-Family",
             "Apartment",
             "Manufactured",
+            "Mixed Use",
         ]
         | None
     ) = None
+    unit_count: int | None = Field(None, ge=1, le=500, strict=True)
+    residential_unit_count: int | None = Field(None, ge=0, le=500, strict=True)
+    unit_mix: list[UnitType] | None = Field(None, min_length=1, max_length=30)
+    owner_source: str = Field("Owner-provided", min_length=1, max_length=200)
+    actual_monthly_rent: float | None = Field(None, ge=0, le=1e7)
+
+    @model_validator(mode="after")
+    def valid_units(self):
+        if self.residential_unit_count is not None and (
+            self.unit_count is None or self.residential_unit_count > self.unit_count
+        ):
+            raise ValueError(
+                "Residential units must not exceed the supplied total unit count."
+            )
+        if self.unit_mix:
+            expected = (
+                self.residential_unit_count
+                if self.residential_unit_count is not None
+                else self.unit_count
+            )
+            if expected is None or sum(u.count for u in self.unit_mix) != expected:
+                raise ValueError(
+                    "Unit mix counts must equal the residential unit count (or total for residential buildings)."
+                )
+            if (
+                self.property_type == "Mixed Use"
+                and self.residential_unit_count is None
+            ):
+                raise ValueError("Mixed-use layouts require a residential unit count.")
+        return self
 
     @field_validator("address")
     @classmethod

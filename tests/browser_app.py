@@ -40,6 +40,22 @@ class Provider:
         return {"status": "ok", "details": {"propertyType": "Condo" if "219" in prop.address else "Townhouse"}}
 
     def evaluate(self, prop):
+        if prop.unit_count:
+            from backend.providers.rentcast import RentCast
+
+            class MultiTransport:
+                def get(self, provider, address, url, params, headers, project):
+                    subject = {"formattedAddress": prop.address, "propertyType": "Multi-Family"}
+                    if url.endswith("/properties"):
+                        data = [{**subject, "features": {"unitCount": prop.unit_count}}]
+                    elif url.endswith("/value"):
+                        data = {"price": 800000, "priceRangeLow": 750000, "priceRangeHigh": 900000, "subjectProperty": subject}
+                    else:
+                        rent = 1000 if params["bedrooms"] == 0 else 2000
+                        data = {"rent": rent, "rentRangeLow": rent - 100, "rentRangeHigh": rent + 200}
+                    return {**project(data), "cached": True}
+
+            return RentCast(MultiTransport(), "synthetic").evaluate(prop)
         if "999" in prop.address:
             return {"provider": "test", "status": "not_found", "cached": True}
         return {
