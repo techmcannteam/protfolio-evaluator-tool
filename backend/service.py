@@ -24,8 +24,17 @@ class Evaluator:
             sources = [provider.evaluate(property) for provider in self.providers]
             details = next((s["details"] for s in sources if s.get("details")), {})
             building = next((s["building"] for s in sources if s.get("building")), None)
+            unit_count = property.unit_count or (building or {}).get("unit_count")
+            if unit_count is None:
+                unit_count = (
+                    1
+                    if (property.property_type or details.get("propertyType"))
+                    in {"Single Family", "Townhouse", "Condo", "Manufactured"}
+                    else details.get("unitCount")
+                )
             result = {
                 "address": property.address,
+                "evaluation_mode": getattr(request, "mode", "portfolio"),
                 "property_type": (
                     "Mixed Use"
                     if building and building["mixed_use"]
@@ -40,7 +49,8 @@ class Evaluator:
                 "details": details,
                 "sources": sources,
                 "cached": all(s.get("cached") for s in sources),
-                **calculate(sources, details, assumptions),
+                **calculate(sources, details, assumptions, unit_count),
+                "expense_unit_count": unit_count,
                 "building": building,
                 "residential_rent": blend(sources, "residential_rent"),
                 "commercial_rent": None,
@@ -68,6 +78,10 @@ class Evaluator:
             result["warnings"] = list(
                 dict.fromkeys(w for s in sources for w in s.get("warnings", []))
             )
+            if result["expense_status"] == "needs_unit_count":
+                result["warnings"].append(
+                    "Per-unit expenses require a verified unit count; NOI and cap rate need agent review."
+                )
             result["needs_agent_review"] = bool(
                 building and building["review_required"]
             )

@@ -1,0 +1,12 @@
+{
+  "vacancy": 0.05,
+  "management": 0.08,
+  "maintenance": 0.05,
+  "maintenance_mode": "percent_rent",
+  "maintenance_per_unit": 0,
+  "insurance_rate": 0.005,
+  "insurance_mode": "percent_value",
+  "insurance_rent_rate": 0,
+  "insurance_per_unit": 0,
+  "fallback_tax_rate": 0.014
+}

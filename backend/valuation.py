@@ -84,14 +84,23 @@ def sum_unit_rents(units):
     return result
 
 
-def calculate(sources, details, assumptions):
+def calculate(sources, details, assumptions, unit_count=None):
     value, rent = blend(sources, "value"), blend(sources, "rent")
     if rent and rent.get("scope") not in (None, "building"):
         rent = None
     if value and value.get("scope") not in (None, "building"):
         value = None
     expenses = None
-    if value and rent:
+    needs_units = (
+        assumptions.maintenance_mode == "per_unit"
+        or assumptions.insurance_mode == "per_unit"
+    )
+    missing_units = needs_units and (
+        not isinstance(unit_count, int)
+        or isinstance(unit_count, bool)
+        or unit_count < 1
+    )
+    if value and rent and not missing_units:
         annual = rent["estimate"] * 12
         actual = number(details.get("annual_taxes"), zero=True)
         taxes = (
@@ -103,9 +112,19 @@ def calculate(sources, details, assumptions):
         if taxes is None:
             taxes = value["estimate"] * assumptions.fallback_tax_rate
             tax_source = "fallback"
-        insurance = value["estimate"] * assumptions.insurance_rate
+        insurance = (
+            unit_count * assumptions.insurance_per_unit
+            if assumptions.insurance_mode == "per_unit"
+            else annual * assumptions.insurance_rent_rate
+            if assumptions.insurance_mode == "percent_rent"
+            else value["estimate"] * assumptions.insurance_rate
+        )
         management = annual * assumptions.management
-        maintenance = annual * assumptions.maintenance
+        maintenance = (
+            unit_count * assumptions.maintenance_per_unit
+            if assumptions.maintenance_mode == "per_unit"
+            else annual * assumptions.maintenance
+        )
         noi = (
             annual * (1 - assumptions.vacancy)
             - taxes
@@ -128,6 +147,7 @@ def calculate(sources, details, assumptions):
         "value": value,
         "rent": rent,
         "operating": expenses,
+        "expense_status": "needs_unit_count" if missing_units else "ok",
         "assumptions": assumptions.model_dump(),
         "assumptions_status": "Placeholders; pending confirmation with Ben.",
         "disclaimer": DISCLAIMER,

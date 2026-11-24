@@ -1,0 +1,466 @@
+{
+  "source": "Follow Up Boss GET /v1/users, 2026-11-24; unique email match",
+  "scope": "Active Agent-role users plus Mike McCann and Ben Hooson Jones; approved by owner",
+  "agents": [
+    {
+      "slug": "adam-feine",
+      "name": "Adam Feine",
+      "email": "adam@mainlinemccann.com",
+      "phone": "2154352544",
+      "fub_user_id": 117,
+      "photo_url": ""
+    },
+    {
+      "slug": "alex-frederick",
+      "name": "Alex Frederick",
+      "email": "alex@mccannteam.com",
+      "phone": "9418898266",
+      "fub_user_id": 126,
+      "photo_url": ""
+    },
+    {
+      "slug": "alexis-mcbride",
+      "name": "Alexis McBride",
+      "email": "alexis@mainlinemccann.com",
+      "phone": "6103318504",
+      "fub_user_id": 68,
+      "photo_url": ""
+    },
+    {
+      "slug": "arvind-balaji",
+      "name": "Arvind Balaji",
+      "email": "arvind@mccannteam.com",
+      "phone": "267-815-2016",
+      "fub_user_id": 31,
+      "photo_url": ""
+    },
+    {
+      "slug": "asa-kurland",
+      "name": "Asa Kurland",
+      "email": "asa@mccannteam.com",
+      "phone": "443-690-7684",
+      "fub_user_id": 41,
+      "photo_url": ""
+    },
+    {
+      "slug": "ben-hooson-jones",
+      "name": "Ben Hooson Jones",
+      "email": "ben@mccannteam.com",
+      "phone": "6103689041",
+      "fub_user_id": 38,
+      "photo_url": ""
+    },
+    {
+      "slug": "bibe-chin",
+      "name": "Bibe Chin",
+      "email": "bchin@mccannteam.com",
+      "phone": "(267) 210-0489",
+      "fub_user_id": 12,
+      "photo_url": ""
+    },
+    {
+      "slug": "bryanna-carzo",
+      "name": "Bryanna Carzo",
+      "email": "bcarzo@mccannteam.com",
+      "phone": "6107428591",
+      "fub_user_id": 21,
+      "photo_url": ""
+    },
+    {
+      "slug": "carlos-masip",
+      "name": "Carlos Masip",
+      "email": "carlos@mccannteam.com",
+      "phone": "2674560448",
+      "fub_user_id": 63,
+      "photo_url": ""
+    },
+    {
+      "slug": "carmel-archdekin",
+      "name": "Carmel Archdekin",
+      "email": "carmel@mccannteam.com",
+      "phone": "2156805998",
+      "fub_user_id": 69,
+      "photo_url": ""
+    },
+    {
+      "slug": "cayden-koysani",
+      "name": "Cayden Koysani",
+      "email": "cayden@mainlinemccann.com",
+      "phone": "2153176250",
+      "fub_user_id": 140,
+      "photo_url": ""
+    },
+    {
+      "slug": "chelsea-coia",
+      "name": "Chelsea Coia",
+      "email": "ccoia@mccannteam.com",
+      "phone": "2678859148",
+      "fub_user_id": 155,
+      "photo_url": ""
+    },
+    {
+      "slug": "colleen-monaghan",
+      "name": "Colleen Monaghan",
+      "email": "colleen@mccannteam.com",
+      "phone": "2155304557",
+      "fub_user_id": 50,
+      "photo_url": ""
+    },
+    {
+      "slug": "conar-deluca",
+      "name": "Conar Deluca",
+      "email": "conar@mainlinemccann.com",
+      "phone": "2154781005",
+      "fub_user_id": 80,
+      "photo_url": ""
+    },
+    {
+      "slug": "conor-doyle",
+      "name": "Conor Doyle",
+      "email": "conor@sixtenrealestate.com",
+      "phone": "6103682774",
+      "fub_user_id": 149,
+      "photo_url": ""
+    },
+    {
+      "slug": "cris-secuya",
+      "name": "Cris Secuya",
+      "email": "cris@mccannteam.com",
+      "phone": "2673623673",
+      "fub_user_id": 123,
+      "photo_url": ""
+    },
+    {
+      "slug": "daniel-evenchen",
+      "name": "Daniel Evenchen",
+      "email": "daniel@mccannteam.com",
+      "phone": "2673919308",
+      "fub_user_id": 20,
+      "photo_url": ""
+    },
+    {
+      "slug": "danielle-akif",
+      "name": "Danielle Akif",
+      "email": "danielle@mccannteam.com",
+      "phone": "215-915-0612",
+      "fub_user_id": 146,
+      "photo_url": ""
+    },
+    {
+      "slug": "ed-foy",
+      "name": "Ed Foy",
+      "email": "efoy@mccannteam.com",
+      "phone": "6109089391",
+      "fub_user_id": 19,
+      "photo_url": ""
+    },
+    {
+      "slug": "erin-rigo",
+      "name": "Erin Rigo",
+      "email": "erin@mainlinemccann.com",
+      "phone": "(267) 606-3318",
+      "fub_user_id": 92,
+      "photo_url": ""
+    },
+    {
+      "slug": "evangeline-gambardella",
+      "name": "Evangeline Gambardella",
+      "email": "evangeline@mccannteam.com",
+      "phone": "4844677098",
+      "fub_user_id": 82,
+      "photo_url": ""
+    },
+    {
+      "slug": "geovanna-rodrigues",
+      "name": "Geovanna Rodrigues",
+      "email": "geovanna@mccannteam.com",
+      "phone": "2675059357",
+      "fub_user_id": 152,
+      "photo_url": ""
+    },
+    {
+      "slug": "grace-garner",
+      "name": "Grace Garner",
+      "email": "grace@mccannteam.com",
+      "phone": "2677181551",
+      "fub_user_id": 143,
+      "photo_url": ""
+    },
+    {
+      "slug": "james-kennedy",
+      "name": "James Kennedy",
+      "email": "jkennedy@kw.com",
+      "phone": "856-383-9820",
+      "fub_user_id": 134,
+      "photo_url": ""
+    },
+    {
+      "slug": "jamie-golden",
+      "name": "Jamie Golden",
+      "email": "jamiegolden@mccannteam.com",
+      "phone": "215-380-8385",
+      "fub_user_id": 148,
+      "photo_url": ""
+    },
+    {
+      "slug": "jessica-clatterbuck",
+      "name": "Jessica Clatterbuck",
+      "email": "jessica@mainlinemccann.com",
+      "phone": "6105744989",
+      "fub_user_id": 132,
+      "photo_url": ""
+    },
+    {
+      "slug": "jessica-ledbetter",
+      "name": "Jessica Ledbetter",
+      "email": "jledbetter@mainlinemccann.com",
+      "phone": "6104964006",
+      "fub_user_id": 154,
+      "photo_url": ""
+    },
+    {
+      "slug": "jim-onesti",
+      "name": "Jim Onesti",
+      "email": "jonesti@mccannteam.com",
+      "phone": "215-783-6724",
+      "fub_user_id": 34,
+      "photo_url": ""
+    },
+    {
+      "slug": "jonathan-evenchen",
+      "name": "Jonathan Evenchen",
+      "email": "jonathan@mccannteam.com",
+      "phone": "2673919797",
+      "fub_user_id": 39,
+      "photo_url": ""
+    },
+    {
+      "slug": "katie-mccann",
+      "name": "Katie McCann",
+      "email": "kmccann@mccannteam.com",
+      "phone": "(609) 226-6578",
+      "fub_user_id": 26,
+      "photo_url": ""
+    },
+    {
+      "slug": "keri-berger",
+      "name": "Keri Berger",
+      "email": "keri@mainlinemccann.com",
+      "phone": "(484) 343-3131",
+      "fub_user_id": 113,
+      "photo_url": ""
+    },
+    {
+      "slug": "kerry-maginnis",
+      "name": "Kerry Maginnis",
+      "email": "kerryann@mainlinemccann.com",
+      "phone": "2158404091",
+      "fub_user_id": 64,
+      "photo_url": ""
+    },
+    {
+      "slug": "lauren-acker-kratz",
+      "name": "Lauren Acker Kratz",
+      "email": "lakratz@mccannteam.com",
+      "phone": "2679770363",
+      "fub_user_id": 7,
+      "photo_url": ""
+    },
+    {
+      "slug": "maria-hooson-jones",
+      "name": "Maria Hooson-Jones",
+      "email": "maria@mainlinemccann.com",
+      "phone": "610-368-4814",
+      "fub_user_id": 122,
+      "photo_url": ""
+    },
+    {
+      "slug": "maryfrances-ferrante",
+      "name": "Maryfrances Ferrante",
+      "email": "maryfrances@mainlinemccann.com",
+      "phone": "(215) 287-8589",
+      "fub_user_id": 153,
+      "photo_url": ""
+    },
+    {
+      "slug": "matt-benigno",
+      "name": "Matt Benigno",
+      "email": "mattbenigno@kw.com",
+      "phone": "2156516838",
+      "fub_user_id": 127,
+      "photo_url": ""
+    },
+    {
+      "slug": "melanie-mcconnell",
+      "name": "Melanie McConnell",
+      "email": "melanie@mccannteam.com",
+      "phone": "2152007413",
+      "fub_user_id": 2,
+      "photo_url": ""
+    },
+    {
+      "slug": "michael-a-becker",
+      "name": "Michael A. Becker",
+      "email": "mikebecker@mccannteam.com",
+      "phone": "610-888-3035",
+      "fub_user_id": 54,
+      "photo_url": ""
+    },
+    {
+      "slug": "michael-yizzi",
+      "name": "Michael yizzi",
+      "email": "myizzi@mccannteam.com",
+      "phone": "2677212613",
+      "fub_user_id": 78,
+      "photo_url": ""
+    },
+    {
+      "slug": "mike-mccann",
+      "name": "Mike McCann",
+      "email": "mccann@mccannteam.com",
+      "phone": "2157094141",
+      "fub_user_id": 1,
+      "photo_url": ""
+    },
+    {
+      "slug": "mikhal-mary",
+      "name": "Mikhal Mary",
+      "email": "mikhal@mccannteam.com",
+      "phone": "215-310-8080",
+      "fub_user_id": 49,
+      "photo_url": ""
+    },
+    {
+      "slug": "mj-zeidan",
+      "name": "MJ Zeidan",
+      "email": "zeidanm@kw.com",
+      "phone": "401-516-7565",
+      "fub_user_id": 133,
+      "photo_url": ""
+    },
+    {
+      "slug": "monica-doyle",
+      "name": "Monica Doyle",
+      "email": "monica@mainlinemccann.com",
+      "phone": "610-213-5366",
+      "fub_user_id": 142,
+      "photo_url": ""
+    },
+    {
+      "slug": "morgan-sampson",
+      "name": "Morgan Sampson",
+      "email": "morgan@mainlinemccann.com",
+      "phone": "(267) 405-2600",
+      "fub_user_id": 96,
+      "photo_url": ""
+    },
+    {
+      "slug": "nabila-jackson",
+      "name": "Nabila Jackson",
+      "email": "nabila@mainlinemccann.com",
+      "phone": "2159369386",
+      "fub_user_id": 72,
+      "photo_url": ""
+    },
+    {
+      "slug": "paul-chin",
+      "name": "Paul Chin",
+      "email": "pchin@mccannteam.com",
+      "phone": "2672100488",
+      "fub_user_id": 9,
+      "photo_url": ""
+    },
+    {
+      "slug": "ryan-mccann",
+      "name": "Ryan McCann",
+      "email": "ryan@mccannteam.com",
+      "phone": "4844291637",
+      "fub_user_id": 141,
+      "photo_url": ""
+    },
+    {
+      "slug": "savannah-pukanecz",
+      "name": "Savannah Pukanecz",
+      "email": "savannah@mccannteam.com",
+      "phone": "",
+      "fub_user_id": 144,
+      "photo_url": ""
+    },
+    {
+      "slug": "scott-berger",
+      "name": "Scott Berger",
+      "email": "scott@mainlinemccann.com",
+      "phone": "4843433130",
+      "fub_user_id": 128,
+      "photo_url": ""
+    },
+    {
+      "slug": "sean-elstone",
+      "name": "Sean Elstone",
+      "email": "sean@mainlinemccann.com",
+      "phone": "6102091934",
+      "fub_user_id": 67,
+      "photo_url": ""
+    },
+    {
+      "slug": "sean-fannon",
+      "name": "Sean Fannon",
+      "email": "sfannon@mccannteam.com",
+      "phone": "6097605517",
+      "fub_user_id": 131,
+      "photo_url": ""
+    },
+    {
+      "slug": "solana-greer",
+      "name": "Solana Greer",
+      "email": "solana@mainlinemccann.com",
+      "phone": "2156945619",
+      "fub_user_id": 129,
+      "photo_url": ""
+    },
+    {
+      "slug": "steven-onesti",
+      "name": "Steven Onesti",
+      "email": "sonesti@mccannteam.com",
+      "phone": "215-783-7779",
+      "fub_user_id": 121,
+      "photo_url": ""
+    },
+    {
+      "slug": "stuart-cohen",
+      "name": "Stuart Cohen",
+      "email": "scohen@mccannteam.com",
+      "phone": "2152750800",
+      "fub_user_id": 6,
+      "photo_url": ""
+    },
+    {
+      "slug": "tina-elmer",
+      "name": "Tina Elmer",
+      "email": "tina@mainlinemccann.com",
+      "phone": "(215) 680-8852",
+      "fub_user_id": 91,
+      "photo_url": ""
+    },
+    {
+      "slug": "zachary-cohen",
+      "name": "Zachary Cohen",
+      "email": "zack@mccannteam.com",
+      "phone": "(610)513-4072",
+      "fub_user_id": 45,
+      "photo_url": ""
+    }
+  ],
+  "generic_assignee": {
+    "name": "Katie Giardinelli",
+    "email": null,
+    "fub_user_id": null,
+    "status": "needs_configuration",
+    "reason": "No account found in FUB users GET; owner believes Katie has no FUB account."
+  },
+  "retired_slugs": [
+    "test-ben",
+    "test-nicole",
+    "test-mccann"
+  ]
+}

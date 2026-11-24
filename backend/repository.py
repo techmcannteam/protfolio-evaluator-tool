@@ -9,6 +9,8 @@ from contextlib import contextmanager
 import psycopg
 from psycopg.rows import dict_row
 
+from .roster import load_roster
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS agents (slug TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, fub_user_id TEXT);
 CREATE TABLE IF NOT EXISTS provider_cache (cache_key TEXT PRIMARY KEY, payload TEXT, expires_at DOUBLE PRECISION NOT NULL DEFAULT 0, lease_until DOUBLE PRECISION NOT NULL DEFAULT 0, lease_token TEXT);
@@ -60,7 +62,7 @@ class Repository:
         finally:
             conn.close()
 
-    def initialize(self):
+    def initialize(self, *, seed_roster=True):
         with self.transaction() as db:
             if self.postgres:
                 db.execute("SELECT pg_advisory_xact_lock(710272026)")
@@ -97,25 +99,56 @@ class Repository:
                     db.execute(
                         f"ALTER TABLE agents ADD COLUMN {optional}{column} TEXT NOT NULL DEFAULT ''"
                     )
-            db.execute(
-                "INSERT INTO agents(slug,name,email,full_name,first_name,title) VALUES(?,?,?,?,?,?) ON CONFLICT(slug) DO NOTHING",
-                (
-                    "mike-mccann",
-                    "Mike McCann",
-                    "",
-                    "Mike McCann",
-                    "Mike",
-                    "The Mike McCann Team · Keller Williams",
-                ),
+            self._add_columns(db, "agents", {"active": "INTEGER NOT NULL DEFAULT 1"})
+            self._add_columns(
+                db,
+                "evaluation_deliveries",
+                {
+                    "attempts": "INTEGER NOT NULL DEFAULT 0",
+                    "updated_at": "DOUBLE PRECISION NOT NULL DEFAULT 0",
+                    "next_attempt_at": "DOUBLE PRECISION NOT NULL DEFAULT 0",
+                    "lease_token": "TEXT",
+                    "last_error": "TEXT",
+                },
             )
-            for slug, name in [
-                ("test-ben", "Ben — Test Agent"),
-                ("test-nicole", "Nicole — Test Agent"),
-                ("test-mccann", "McCann — Test Agent"),
-            ]:
+            if seed_roster:
+                roster = load_roster(self.settings.roster_path)
+                for agent in roster["agents"]:
+                    name = agent["name"]
+                    db.execute(
+                        "INSERT INTO agents(slug,name,email,full_name,first_name,title,phone,fub_user_id,photo_url,active) VALUES(?,?,?,?,?,?,?,?,?,1) "
+                        "ON CONFLICT(slug) DO UPDATE SET name=excluded.name,email=excluded.email,full_name=excluded.full_name,first_name=excluded.first_name,title=excluded.title,phone=excluded.phone,fub_user_id=COALESCE(excluded.fub_user_id,agents.fub_user_id),active=1,photo_url=CASE WHEN excluded.photo_url='' THEN agents.photo_url ELSE excluded.photo_url END",
+                        (
+                            agent["slug"],
+                            name,
+                            agent["email"],
+                            name,
+                            name.split()[0],
+                            agent.get(
+                                "title", "The Mike McCann Team · Keller Williams"
+                            ),
+                            agent.get("phone", ""),
+                            str(agent["fub_user_id"])
+                            if agent.get("fub_user_id")
+                            else None,
+                            agent.get("photo_url", ""),
+                        ),
+                    )
+                for slug in roster.get("retired_slugs", []):
+                    # Keep historical foreign keys; obsolete test links stop resolving.
+                    db.execute("UPDATE agents SET active=0 WHERE slug=?", (slug,))
+
+    def _add_columns(self, db, table, columns):
+        existing = (
+            set()
+            if self.postgres
+            else {r["name"] for r in db.execute(f"PRAGMA table_info({table})")}
+        )
+        for name, definition in columns.items():
+            if self.postgres or name not in existing:
+                optional = "IF NOT EXISTS " if self.postgres else ""
                 db.execute(
-                    "INSERT INTO agents(slug,name,email) VALUES(?,?,?) ON CONFLICT(slug) DO NOTHING",
-                    (slug, name, slug + "@example.com"),
+                    f"ALTER TABLE {table} ADD COLUMN {optional}{name} {definition}"
                 )
 
     def agents(self):
@@ -123,13 +156,15 @@ class Repository:
             return [
                 dict(r)
                 for r in db.execute(
-                    "SELECT slug,name FROM agents ORDER BY slug"
+                    "SELECT slug,name FROM agents WHERE active=1 ORDER BY slug"
                 ).fetchall()
             ]
 
     def agent(self, slug):
         with self.transaction() as db:
-            row = db.execute("SELECT * FROM agents WHERE slug=?", (slug,)).fetchone()
+            row = db.execute(
+                "SELECT * FROM agents WHERE slug=? AND active=1", (slug,)
+            ).fetchone()
             return dict(row) if row else None
 
     def agent_exists(self, slug):
@@ -246,11 +281,14 @@ class Repository:
             ).fetchone()
             return dict(row) if row else None
 
-    def save_cma(self, request, estimate, status):
-        identifier = str(uuid.uuid4())
+    def save_cma(self, request, estimate, status, *, lead=None, deliveries=None):
+        # Repeated submissions of the same CMA are one request and one outbox event.
+        identifier = str(
+            uuid.uuid5(uuid.NAMESPACE_URL, "cma:" + request.model_dump_json())
+        )
         with self.transaction() as db:
-            db.execute(
-                "INSERT INTO cma_requests VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            inserted = db.execute(
+                "INSERT INTO cma_requests VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING RETURNING id",
                 (
                     identifier,
                     request.estimate_id,
@@ -265,43 +303,124 @@ class Repository:
                     time.time(),
                     status,
                 ),
-            )
+            ).fetchone()
+            if inserted and lead is not None:
+                self._save_lead(db, identifier, lead, deliveries)
         return identifier
 
     def save_evaluation_lead(self, payload, deliveries):
         identifier = str(uuid.uuid4())
         with self.transaction() as db:
-            db.execute(
-                "INSERT INTO evaluation_leads VALUES(?,?,?)",
-                (identifier, json.dumps(payload), time.time()),
-            )
-            for kind, message in deliveries.items():
-                db.execute(
-                    "INSERT INTO evaluation_deliveries VALUES(?,?,?,?)",
-                    (
-                        identifier,
-                        kind,
-                        json.dumps(message),
-                        "waiting_for_results" if kind == "owner_email" else "pending",
-                    ),
-                )
+            self._save_lead(db, identifier, payload, deliveries)
         return identifier
 
-    def claim_delivery(self, identifier, kind, results_shown=False):
-        expected = "waiting_for_results" if results_shown else "pending"
+    def _save_lead(self, db, identifier, payload, deliveries):
+        now = time.time()
+        db.execute(
+            "INSERT INTO evaluation_leads VALUES(?,?,?)",
+            (identifier, json.dumps(payload), now),
+        )
+        for kind, message in deliveries.items():
+            message = {
+                **message,
+                "delivery_id": f"{identifier}:{kind}",
+                "created_at": now,
+            }
+            waiting = kind == "owner_email"
+            db.execute(
+                "INSERT INTO evaluation_deliveries(evaluation_id,kind,payload,status,updated_at,next_attempt_at) VALUES(?,?,?,?,?,?)",
+                (
+                    identifier,
+                    kind,
+                    json.dumps(message),
+                    "waiting_for_results" if waiting else "pending",
+                    now,
+                    now + self.settings.owner_email_delay_seconds if waiting else now,
+                ),
+            )
+
+    def claim_delivery(self, identifier, kind, results_shown=False, *, retry=False):
+        now = time.time()
+        token = str(uuid.uuid4())
+        condition = "status=?"
+        args = ["waiting_for_results" if results_shown else "pending"]
+        if retry:
+            condition = "status IN ('pending','waiting_for_results','failed','disabled','needs_configuration') AND next_attempt_at<=? AND attempts<?"
+            condition += " AND (status<>'waiting_for_results' OR (SELECT timestamp FROM evaluation_leads WHERE id=evaluation_id)<=?)"
+            args = [
+                now,
+                self.settings.delivery_max_attempts,
+                now - self.settings.owner_email_delay_seconds,
+            ]
         with self.transaction() as db:
             row = db.execute(
-                "UPDATE evaluation_deliveries SET status='processing' WHERE evaluation_id=? AND kind=? AND status=? RETURNING payload",
-                (identifier, kind, expected),
+                f"UPDATE evaluation_deliveries SET status='processing',lease_token=?,updated_at=? WHERE evaluation_id=? AND kind=? AND {condition} RETURNING payload,attempts",
+                (token, now, identifier, kind, *args),
             ).fetchone()
-        return json.loads(row["payload"]) if row else None
+            if row:
+                created = db.execute(
+                    "SELECT timestamp FROM evaluation_leads WHERE id=?", (identifier,)
+                ).fetchone()["timestamp"]
+        return (
+            {
+                "delivery_id": f"{identifier}:{kind}",
+                "created_at": created,
+                **json.loads(row["payload"]),
+                "_claim_token": token,
+                "_attempts": row["attempts"],
+            }
+            if row
+            else None
+        )
 
-    def finish_delivery(self, identifier, kind, status):
+    def begin_delivery_attempt(self, identifier, kind, payload):
+        clean = {k: v for k, v in payload.items() if not k.startswith("_")}
         with self.transaction() as db:
+            row = db.execute(
+                "UPDATE evaluation_deliveries SET attempts=attempts+1,payload=? WHERE evaluation_id=? AND kind=? AND status='processing' AND lease_token=? RETURNING attempts",
+                (json.dumps(clean), identifier, kind, payload["_claim_token"]),
+            ).fetchone()
+        return row is not None
+
+    def finish_delivery(self, identifier, kind, status, *, token, error=None):
+        now = time.time()
+        with self.transaction() as db:
+            row = db.execute(
+                "UPDATE evaluation_deliveries SET status=?,updated_at=?,next_attempt_at=?,last_error=?,lease_token=NULL WHERE evaluation_id=? AND kind=? AND status='processing' AND lease_token=? RETURNING kind",
+                (
+                    status,
+                    now,
+                    now + self.settings.delivery_retry_seconds,
+                    error,
+                    identifier,
+                    kind,
+                    token,
+                ),
+            ).fetchone()
+            if row and kind == "fub":
+                db.execute(
+                    "UPDATE cma_requests SET fub_status=? WHERE id=?",
+                    (status, identifier),
+                )
+
+    def recoverable_deliveries(self, limit=10):
+        now = time.time()
+        with self.transaction() as db:
+            # A crashed sender might have transmitted. Hold it for reconciliation.
             db.execute(
-                "UPDATE evaluation_deliveries SET status=? WHERE evaluation_id=? AND kind=?",
-                (status, identifier, kind),
+                "UPDATE evaluation_deliveries SET status='uncertain',last_error='worker_interrupted',lease_token=NULL WHERE status='processing' AND updated_at<?",
+                (now - 120,),
             )
+            rows = db.execute(
+                "SELECT evaluation_id,kind FROM evaluation_deliveries WHERE status IN ('pending','waiting_for_results','failed','disabled','needs_configuration') AND next_attempt_at<=? AND attempts<? AND (status<>'waiting_for_results' OR (SELECT timestamp FROM evaluation_leads WHERE id=evaluation_id)<=?) ORDER BY next_attempt_at,evaluation_id,kind LIMIT ?",
+                (
+                    now,
+                    self.settings.delivery_max_attempts,
+                    now - self.settings.owner_email_delay_seconds,
+                    limit,
+                ),
+            ).fetchall()
+        return [dict(row) for row in rows]
 
     def delivery_statuses(self, identifier):
         with self.transaction() as db:

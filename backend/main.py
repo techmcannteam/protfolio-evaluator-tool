@@ -14,8 +14,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .agents import resolve_agent
 from .config import DISCLAIMER, Settings
-from .follow_up_boss import pushToFUB
-from .followups import EvaluationFollowups
+from .followups import EvaluationFollowups, resolve_routing
 from .models import CMARequest, PropertyInput, PublicEvaluateRequest
 from .places import lookup
 from .providers.attom import Attom
@@ -184,7 +183,7 @@ def create_app(
             "status": "ok",
             "service": "mccann-portfolio-evaluator",
             "storage": "postgres" if repository.postgres else "sqlite",
-            "fub": "simulated",
+            "fub": "enabled" if settings.enable_fub else "disabled",
         }
 
     @app.get("/api/agents")
@@ -216,8 +215,11 @@ def create_app(
     ):
         limit(request, "evaluate")
         requested_slug = agent if agent is not None else body.agent
-        attribution = resolve_agent(repository, requested_slug)["slug"]
+        attribution = resolve_routing(repository, settings, requested_slug)[
+            "agent_slug"
+        ]
         result = evaluator.evaluate(body, attribution)
+        result["agent"] = resolve_agent(repository, requested_slug)["slug"]
         result["evaluation_id"] = followups.record(body, result, requested_slug)
         result["delivery"] = repository.delivery_statuses(result["evaluation_id"])
         return result
@@ -231,6 +233,16 @@ def create_app(
         followups.dispatch(identifier, "owner_email", results_shown=True)
         return {"owner_email": repository.delivery_statuses(identifier)["owner_email"]}
 
+    @app.post("/api/admin/deliveries/retry")
+    def retry_deliveries(request: Request, batch_size: int = Query(1, ge=1, le=1)):
+        expected = settings.delivery_admin_token
+        supplied = request.headers.get("authorization", "")
+        if len(expected) < 32 or not hmac.compare_digest(
+            supplied, f"Bearer {expected}"
+        ):
+            raise HTTPException(403, "Delivery administration is not authorized.")
+        return {"deliveries": followups.recover(batch_size)}
+
     @app.post("/api/cma-requests", status_code=201)
     def cma(body: CMARequest, request: Request):
         limit(request, "cma")
@@ -242,16 +254,12 @@ def create_app(
         if estimate["agent_slug"] and estimate["agent_slug"] != body.agent_slug:
             raise HTTPException(409, "Agent does not match the estimate link.")
         # The stored server estimate is authoritative; the client cannot submit a forged value.
-        status = (
-            pushToFUB(body.model_dump(mode="json"))
-            if settings.enable_fub
-            else {"status": "simulated", "sent": False}
-        )
-        identifier = repository.save_cma(body, estimate, status["status"])
+        identifier = followups.record_cma(body, estimate)
+        status = repository.delivery_statuses(identifier)["fub"]
         return {
             "id": identifier,
             "status": "saved",
-            "fub": status,
+            "fub": {"status": status, "sent": status == "sent"},
             "disclaimer": DISCLAIMER,
         }
 

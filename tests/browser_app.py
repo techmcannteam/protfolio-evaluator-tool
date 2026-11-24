@@ -1,6 +1,7 @@
 """Local browser-test server: synthetic roster/provider, never uses real credentials."""
 
 import os
+from pathlib import Path
 
 from backend.config import Settings
 from backend.main import create_app
@@ -11,6 +12,7 @@ settings = Settings(
     database_path=os.environ["BROWSER_TEST_DB"],
     vercel=False,
     rate_limit=10000,
+    roster_path=str(Path(__file__).parent / "fixtures/agent-roster.json"),
 )
 repo = Repository(settings)
 repo.initialize()

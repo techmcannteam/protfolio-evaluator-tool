@@ -1,10 +1,14 @@
-"""Persist server-calculated followups; all production senders remain stubs."""
+"""Durable, flag-gated followups with conservative recovery after uncertain sends."""
+
+import json
 
 from .agents import SLUG
 from .config import DISCLAIMER
+from .delivery_errors import DeliveryError
 from .email_templates import email_html
-from .follow_up_boss import evaluation_event, pushToFUB
-from .notifications import StubEmailSender
+from .follow_up_boss import FubSender, evaluation_event
+from .notifications import SmtpEmailSender
+from .roster import load_roster
 
 
 def resolve_routing(repository, settings, requested_slug):
@@ -13,7 +17,12 @@ def resolve_routing(repository, settings, requested_slug):
         if requested_slug and SLUG.fullmatch(requested_slug)
         else None
     )
-    raw_id = agent.get("fub_user_id") if agent else settings.fub_generic_assignee_id
+    generic = settings.fub_generic_assignee_id
+    if not agent and not generic:
+        generic = (load_roster(settings.roster_path).get("generic_assignee") or {}).get(
+            "fub_user_id"
+        )
+    raw_id = agent.get("fub_user_id") if agent else generic
     try:
         assignee_id = int(raw_id)
         if assignee_id <= 0:
@@ -85,8 +94,8 @@ def summary_text(result, mode="portfolio"):
 class EvaluationFollowups:
     def __init__(self, repository, settings, email_sender=None, fub_sender=None):
         self.repository, self.settings = repository, settings
-        self.email_sender = email_sender or StubEmailSender()
-        self.fub_sender = fub_sender or pushToFUB
+        self.email_sender = email_sender or SmtpEmailSender(settings)
+        self.fub_sender = fub_sender or FubSender(settings)
 
     def record(self, request, result, requested_slug):
         routing = resolve_routing(self.repository, self.settings, requested_slug)
@@ -146,27 +155,115 @@ class EvaluationFollowups:
         self.dispatch(identifier, "team_email")
         return identifier
 
-    def dispatch(self, identifier, kind, results_shown=False):
-        payload = self.repository.claim_delivery(identifier, kind, results_shown)
+    def record_cma(self, request, estimate):
+        snapshot = json.loads(estimate["payload"])
+        mode = snapshot.get("evaluation_mode", "portfolio")
+        routing = resolve_routing(
+            self.repository, self.settings, estimate["agent_slug"]
+        )
+        contact = {
+            "name": request.owner_name,
+            "email": str(request.email),
+            "phone": request.phone,
+        }
+        description = "\n".join(
+            [
+                "Owner requested an agent CMA.",
+                estimate["address"],
+                f"Provider estimate: ${snapshot['value']['estimate']:,.0f}",
+                f"Owner expected value: {request.expected_value if request.expected_value is not None else 'Not provided'}",
+                f"Owner note: {request.note}",
+            ]
+        )
+        event = evaluation_event(contact, mode, routing["assignee_id"], description)
+        event["person"]["tags"].append("cma-request")
+        event["message"] = f"Owner requested a CMA after a {mode} evaluation."
+        identifier = self.repository.save_cma(
+            request,
+            estimate,
+            "pending",
+            lead={"kind": "cma", "contact": contact, "mode": mode, "routing": routing},
+            deliveries={"fub": {"event": event, "routing": routing}},
+        )
+        self.dispatch(identifier, "fub")
+        return identifier
+
+    def recover(self, limit=10):
+        recovered = []
+        for row in self.repository.recoverable_deliveries(limit):
+            self.dispatch(row["evaluation_id"], row["kind"], retry=True)
+            recovered.append(
+                {
+                    **row,
+                    "status": self.repository.delivery_statuses(row["evaluation_id"])[
+                        row["kind"]
+                    ],
+                }
+            )
+        return recovered
+
+    def dispatch(self, identifier, kind, results_shown=False, *, retry=False):
+        payload = self.repository.claim_delivery(
+            identifier, kind, results_shown, retry=retry
+        )
         if payload is None:
             return
+        error = None
         try:
             if kind == "fub":
                 if not self.settings.enable_fub:
                     status = "disabled"
-                elif payload["routing"]["status"] != "configured":
-                    status = "needs_configuration"
                 else:
-                    status = self.fub_sender(payload["event"])["status"]
+                    if payload["routing"]["status"] != "configured":
+                        routing = resolve_routing(
+                            self.repository,
+                            self.settings,
+                            payload["routing"]["agent_slug"],
+                        )
+                        # A formerly valid agent must not silently become a generic lead.
+                        if (
+                            payload["routing"]["kind"] == "agent_link"
+                            and routing["kind"] != "agent_link"
+                        ):
+                            routing = payload["routing"]
+                        payload["routing"] = routing
+                        if routing["assignee_id"]:
+                            payload["event"]["person"]["assignedUserId"] = routing[
+                                "assignee_id"
+                            ]
+                    if payload["routing"]["status"] != "configured" or not getattr(
+                        self.fub_sender, "configured", True
+                    ):
+                        status = "needs_configuration"
+                    elif self.repository.begin_delivery_attempt(
+                        identifier, kind, payload
+                    ):
+                        status = self.fub_sender(payload["event"])["status"]
+                    else:
+                        return
             elif not self.settings.enable_email or (
                 kind == "team_email" and not self.settings.enable_team_notifications
             ):
                 status = "disabled"
-            elif not payload["from"] or not payload["to"]:
-                status = "needs_configuration"
             else:
-                status = self.email_sender.send(payload)["status"]
+                payload["from"] = payload["from"] or self.settings.email_from
+                if kind == "team_email" and not payload["to"]:
+                    payload["to"] = list(self.settings.internal_notification_recipients)
+                if (
+                    not payload["from"]
+                    or not payload["to"]
+                    or not getattr(self.email_sender, "configured", True)
+                ):
+                    status = "needs_configuration"
+                elif self.repository.begin_delivery_attempt(identifier, kind, payload):
+                    status = self.email_sender.send(payload)["status"]
+                else:
+                    return
+        except DeliveryError as exc:
+            status, error = exc.status, exc.code
         except (OSError, RuntimeError, ValueError, TypeError, KeyError):
             # Delivery failures must not discard an evaluation or expose contact data.
-            status = "failed"
-        self.repository.finish_delivery(identifier, kind, status)
+            status, error = "uncertain", "unexpected_delivery_error"
+        self.repository.finish_delivery(
+            identifier, kind, status, token=payload["_claim_token"], error=error
+        )

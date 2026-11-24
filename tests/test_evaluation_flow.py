@@ -280,7 +280,7 @@ def test_delivery_failure_does_not_fail_evaluation_or_leak_contact(flow):
     email.send = fail
     response = client.post("/api/evaluate", json=request())
     assert response.status_code == 200
-    assert response.json()["delivery"]["team_email"] == "failed"
+    assert response.json()["delivery"]["team_email"] == "uncertain"
     assert "private data" not in response.text
 
 
@@ -363,7 +363,7 @@ def test_atomic_delivery_claim(flow):
     assert sum(c is not None for c in claims) == 1
 
 
-def test_default_senders_never_send_even_with_flags_enabled(tmp_path):
+def test_default_senders_require_credentials_even_with_flags_enabled(tmp_path):
     settings = Settings(
         database_url="",
         database_path=str(tmp_path / "stub.db"),
@@ -378,8 +378,200 @@ def test_default_senders_never_send_even_with_flags_enabled(tmp_path):
     with TestClient(create_app(settings, providers=[SyntheticProvider()])) as client:
         result = client.post("/api/evaluate", json=request()).json()
         assert (
-            result["delivery"]["fub"] == result["delivery"]["team_email"] == "simulated"
+            result["delivery"]["fub"]
+            == result["delivery"]["team_email"]
+            == "needs_configuration"
         )
         assert client.post(
             f"/api/evaluations/{result['evaluation_id']}/results-shown"
-        ).json() == {"owner_email": "simulated"}
+        ).json() == {"owner_email": "needs_configuration"}
+
+
+def due(repo, identifier, kind):
+    with repo.transaction() as db:
+        db.execute(
+            "UPDATE evaluation_deliveries SET next_attempt_at=0 WHERE evaluation_id=? AND kind=?",
+            (identifier, kind),
+        )
+
+
+def test_admin_retry_auth_and_owner_missing_callback(flow):
+    client, repo, settings, _, email, _ = flow
+    settings.enable_email = True
+    settings.delivery_admin_token = "x" * 40
+    result = client.post("/api/evaluate", json=request("home")).json()
+    identifier = result["evaluation_id"]
+    assert client.post("/api/admin/deliveries/retry").status_code == 403
+    headers = {"Authorization": "Bearer " + settings.delivery_admin_token}
+    assert (
+        client.post("/api/admin/deliveries/retry", headers=headers).json()["deliveries"]
+        == []
+    )
+    with repo.transaction() as db:
+        db.execute("UPDATE evaluation_leads SET timestamp=0 WHERE id=?", (identifier,))
+    due(repo, identifier, "owner_email")
+    assert (
+        client.post("/api/admin/deliveries/retry", headers=headers).status_code == 200
+    )
+    assert len(email.messages) == 1
+    assert repo.delivery_statuses(identifier)["owner_email"] == "simulated"
+    client.post(f"/api/evaluations/{identifier}/results-shown")
+    client.post("/api/admin/deliveries/retry", headers=headers)
+    assert len(email.messages) == 1
+
+
+def test_definite_failure_retries_once_and_uncertain_never_retries(flow):
+    from backend.delivery_errors import DeliveryError
+    from backend.followups import EvaluationFollowups
+
+    client, repo, settings, _, email, _ = flow
+    settings.enable_email = settings.enable_team_notifications = True
+    original = email.send
+    email.send = lambda _: (_ for _ in ()).throw(DeliveryError("smtp_rejected"))
+    result = client.post("/api/evaluate", json=request()).json()
+    identifier = result["evaluation_id"]
+    assert repo.delivery_statuses(identifier)["team_email"] == "failed"
+    due(repo, identifier, "team_email")
+    email.send = original
+    runner = EvaluationFollowups(repo, settings, email_sender=email)
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        list(pool.map(lambda _: runner.recover(), range(3)))
+    assert len(email.messages) == 1
+    assert repo.delivery_statuses(identifier)["team_email"] == "simulated"
+    email.send = lambda _: (_ for _ in ()).throw(
+        DeliveryError("smtp_acceptance_unknown", "uncertain")
+    )
+    second = client.post("/api/evaluate", json=request()).json()["evaluation_id"]
+    due(repo, second, "team_email")
+    email.send = original
+    runner.recover()
+    assert repo.delivery_statuses(second)["team_email"] == "uncertain"
+    assert len(email.messages) == 1
+
+
+def test_stale_claim_held_and_old_worker_cannot_finalize(flow):
+    _, repo, _, _, email, _ = flow
+    identifier = repo.save_evaluation_lead(
+        {"synthetic": True}, {"team_email": {"from": "", "to": []}}
+    )
+    claim = repo.claim_delivery(identifier, "team_email")
+    with repo.transaction() as db:
+        db.execute(
+            "UPDATE evaluation_deliveries SET updated_at=0 WHERE evaluation_id=?",
+            (identifier,),
+        )
+    assert repo.recoverable_deliveries() == []
+    repo.finish_delivery(identifier, "team_email", "sent", token=claim["_claim_token"])
+    assert repo.delivery_statuses(identifier)["team_email"] == "uncertain"
+    assert not email.messages
+
+
+def test_disabled_recovery_never_calls_sender_and_max_attempts_hold(flow):
+    from backend.followups import EvaluationFollowups
+
+    client, repo, settings, _, email, events = flow
+    identifier = client.post("/api/evaluate", json=request()).json()["evaluation_id"]
+    for kind in ["owner_email", "team_email", "fub"]:
+        due(repo, identifier, kind)
+    runner = EvaluationFollowups(
+        repo, settings, email_sender=email, fub_sender=lambda e: events.append(e)
+    )
+    runner.recover()
+    assert not email.messages and not events
+    with repo.transaction() as db:
+        db.execute(
+            "UPDATE evaluation_deliveries SET status='failed',attempts=?,next_attempt_at=0 WHERE evaluation_id=?",
+            (settings.delivery_max_attempts, identifier),
+        )
+    assert repo.recoverable_deliveries() == []
+
+
+@pytest.mark.parametrize("mode", ["home", "portfolio"])
+@pytest.mark.parametrize("agent,expected", [(None, 99), ("test-ben", 52)])
+def test_cma_uses_saved_routing_and_mode_and_repeated_submit_is_one_event(
+    flow, mode, agent, expected
+):
+    client, repo, settings, _, _, events = flow
+    settings.enable_fub = True
+    result = client.post(
+        "/api/evaluate" + (f"?agent={agent}" if agent else ""), json=request(mode)
+    ).json()
+    estimate = result["properties"][0]["estimate_id"]
+    body = {
+        "estimate_id": estimate,
+        "owner_name": "Test Owner",
+        "email": "owner@example.com",
+        "phone": "2155550100",
+        "agent_slug": agent or "mike-mccann",
+        "note": "Please prepare a CMA",
+    }
+    one = client.post("/api/cma-requests", json=body)
+    two = client.post("/api/cma-requests", json=body)
+    assert one.status_code == two.status_code == 201
+    assert one.json()["id"] == two.json()["id"]
+    assert len(events) == 2  # one evaluation, one distinct CMA
+    event = events[-1]
+    assert event["person"]["assignedUserId"] == expected
+    assert f"{mode}-evaluation" in event["person"]["tags"]
+    assert "cma-request" in event["person"]["tags"]
+    assert "Please prepare a CMA" in event["description"]
+    assert repo.delivery_statuses(one.json()["id"])["fub"] == "simulated"
+
+
+def test_generic_fub_waits_for_verified_assignee(flow):
+    client, _, settings, _, _, events = flow
+    settings.enable_fub = True
+    settings.fub_generic_assignee_id = ""
+    result = client.post("/api/evaluate", json=request()).json()
+    assert result["delivery"]["fub"] == "needs_configuration"
+    assert not events
+
+
+def test_legacy_outbox_payload_gets_stable_delivery_id_and_respects_grace_period(flow):
+    from backend.followups import EvaluationFollowups
+
+    client, repo, settings, _, email, _ = flow
+    settings.enable_email = True
+    identifier = client.post("/api/evaluate", json=request()).json()["evaluation_id"]
+    with repo.transaction() as db:
+        row = db.execute(
+            "SELECT payload FROM evaluation_deliveries WHERE evaluation_id=? AND kind='owner_email'",
+            (identifier,),
+        ).fetchone()
+        legacy = json.loads(row["payload"])
+        legacy.pop("delivery_id")
+        legacy.pop("created_at")
+        db.execute(
+            "UPDATE evaluation_deliveries SET payload=?,next_attempt_at=0 WHERE evaluation_id=? AND kind='owner_email'",
+            (json.dumps(legacy), identifier),
+        )
+    runner = EvaluationFollowups(repo, settings, email_sender=email)
+    runner.recover()
+    assert not email.messages
+    with repo.transaction() as db:
+        db.execute("UPDATE evaluation_leads SET timestamp=0 WHERE id=?", (identifier,))
+    runner.recover()
+    assert email.messages[0]["delivery_id"] == f"{identifier}:owner_email"
+    assert email.messages[0]["created_at"] == 0
+
+
+def test_per_unit_expenses_from_owner_count_and_unknown_count_review(flow):
+    client, _, settings, _, _, _ = flow
+    from backend.config import Assumptions
+
+    settings.defaults = Assumptions(
+        maintenance_mode="per_unit",
+        maintenance_per_unit=600,
+        insurance_mode="per_unit",
+        insurance_per_unit=400,
+    )
+    data = request()
+    data["addresses"][0]["unit_count"] = 3
+    result = client.post("/api/evaluate", json=data).json()["properties"][0]
+    assert result["operating"]["annual_maintenance"] == 1800
+    assert result["operating"]["annual_insurance"] == 1200
+    assert result["expense_unit_count"] == 3
+    missing = client.post("/api/evaluate", json=request()).json()
+    assert missing["properties"][0]["operating"] is None
+    assert missing["totals"]["cap_rate"] is None
+    assert missing["properties"][0]["expense_status"] == "needs_unit_count"

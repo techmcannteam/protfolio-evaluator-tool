@@ -348,11 +348,11 @@ def test_ten_historical_property_fixtures():
         assert result["disclaimer"] == DISCLAIMER
 
 
-def test_fub_stub_never_sends():
-    from backend.follow_up_boss import pushToFUB
+def test_disabled_real_fub_sender_never_sends():
+    from backend.follow_up_boss import FubSender
 
-    assert pushToFUB({"owner_name": "Synthetic QA"}) == {
-        "status": "simulated",
+    assert FubSender(Settings(enable_fub=False))({"owner_name": "Synthetic QA"}) == {
+        "status": "disabled",
         "sent": False,
     }
 

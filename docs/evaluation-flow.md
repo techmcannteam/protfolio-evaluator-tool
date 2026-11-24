@@ -23,27 +23,29 @@ Contact details and the authoritative result snapshot are stored in `evaluation_
 
 ## Follow-ups and configuration
 
+Updated delivery implementation: see [delivery rollout](delivery-rollout.md) for real-but-disabled FUB/SMTP senders, the verified roster, and admin recovery.
+
 | Setting | Default | Purpose |
 | --- | --- | --- |
 | `ENABLE_EMAIL` | `false` | Gate owner-summary sender and all email delivery |
 | `EMAIL_FROM` | empty | Easily replaceable sender address |
 | `ENABLE_TEAM_NOTIFICATIONS` | `false` | Additional gate for internal email |
 | `INTERNAL_NOTIFICATION_RECIPIENTS` | empty | Comma-separated internal recipient list |
-| `ENABLE_FUB` | `false` | Gate simulated FUB event processing |
+| `ENABLE_FUB` | `false` | Gate real FUB Events delivery (off by default) |
 | `FUB_GENERIC_ASSIGNEE_ID` | empty | Mike McCann’s assistant’s verified FUB user ID |
 | `ENABLE_ATTOM` | `false` | Retained adapter, inactive |
 
-All default sender implementations remain network-free **even if flags are enabled**. A separate approved integration is required for real delivery. `StubEmailSender.send(message)` is injectable through `create_app` and can later be replaced without changing result formatting. Tests inject recording senders. No real sender credentials, recipients or assistant user ID are invented or committed.
+Default implementations are now real FUB Events and SMTP senders, gated off. Configuration and explicit approval are required before enabling them. Tests inject recording senders or mock HTTP/SMTP. No credentials, sender address, recipients or assistant user ID are invented or committed.
 
 Every valid completed evaluation prepares a team notification and FUB event, including evaluations returning unavailable values. The internal summary contains owner name/email/optional phone, the home/portfolio agent link, all addresses, individual results, totals and routing status. Empty recipients or missing sender/assignee configuration prevent dispatch. Invalid submissions and rate-limited requests are not evaluations and do not create leads.
 
-The owner summary is prepared but waits until the browser renders results and posts `/api/evaluations/{evaluation_id}/results-shown`. The callback uses the opaque server-issued UUID and cannot supply or replace email recipients, financial data or message content. Atomic status claims prevent duplicate delivery on repeated callbacks. Delivery errors are recorded as `failed` without discarding results or exposing exception/contact data. No automatic retry or background delivery worker is enabled; pending/failed recovery requires a separately approved delivery rollout.
+The owner summary is prepared but waits until the browser renders results and posts `/api/evaluations/{evaluation_id}/results-shown`. The callback uses the opaque server-issued UUID and cannot supply or replace email recipients, financial data or message content. Atomic status claims prevent duplicate delivery on repeated callbacks. Confirmed failures are recorded as `failed`; uncertain acceptance is held for reconciliation. The authenticated admin retry action handles eligible failures and owner emails missing their callback after a 15-minute grace period. No cron is enabled.
 
 ## Follow Up Boss routing
 
 Known explicit agent links use the roster’s `agents.fub_user_id`. Generic, unknown or invalid links use `FUB_GENERIC_ASSIGNEE_ID`. An explicit Mike link routes to Mike’s roster ID; a generic link routes to the configured assistant. Missing agent mappings are flagged `needs_configuration`, never reassigned to another agent or guessed.
 
-Prepared [FUB Events API](https://docs.followupboss.com/reference/events-post) payloads use `type=Seller Inquiry`, `source=McCann Home Evaluation` or `McCann Portfolio Evaluation`, contact arrays under `person`, `person.assignedUserId`, and `person.tags` containing `home-evaluation` or `portfolio-evaluation`. The server-calculated summary is included in the description. This follows the permit tool’s Events API shape without borrowing its live sender or credentials. Existing CMA delivery remains simulated.
+Prepared [FUB Events API](https://docs.followupboss.com/reference/events-post) payloads use `type=Seller Inquiry`, `source=McCann Home Evaluation` or `McCann Portfolio Evaluation`, contact arrays under `person`, `person.assignedUserId`, and `person.tags` containing `home-evaluation` or `portfolio-evaluation`. The server-calculated summary is included in the description. This follows the permit tool’s Events API shape without borrowing its live sender or credentials. CMA delivery uses the same disabled real sender and durable outbox.
 
 ## Verification
 

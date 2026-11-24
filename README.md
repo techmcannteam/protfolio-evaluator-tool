@@ -19,13 +19,13 @@ The original brief referred to “section 3” without supplying paths. These pa
 
 | Endpoint | Behavior |
 |---|---|
-| GET /health | Database health and simulated FUB status |
+| GET /health | Database health and enabled/disabled FUB status |
 | GET /api/agents | Public agent slugs/names |
 | GET /api/config | Assumptions, limits and disclaimer |
 | GET /evaluator/home | One-address flow |
 | GET /evaluator/portfolio | Multiple addresses and CSV upload |
 | POST /api/evaluate?agent=test-ben | Contact-required evaluation; home mode accepts one address |
-| POST /api/evaluations/{id}/results-shown | Idempotently process the saved owner-summary stub after results display |
+| POST /api/evaluations/{id}/results-shown | Idempotently process the saved, flag-gated owner summary after results display |
 | POST /api/cma-requests | Save a CMA request using a server-issued estimate id |
 
 Evaluation example:
@@ -44,7 +44,7 @@ CMA example (replace estimate_id with one returned by evaluation):
 
 The property and our estimate are loaded from the saved server result, never trusted from the client. Attributed estimates cannot be reassigned to another agent. Contacts have no public read endpoint. The seeded `test-ben`, `test-nicole`, and `test-mccann` agents use example.com emails and are explicitly labeled test agents.
 
-**FUB remains simulated.** ENABLE_FUB defaults to false; even when true, pushToFUB(request) is a no-network stub using the Events API payload shape and configured assignment. Email and team notifications also use no-network stubs. No CRM lead, email or notification is sent.
+**Delivery remains disabled.** Real FUB Events and SMTP senders are built behind ENABLE_FUB=false and ENABLE_EMAIL=false. SMTP sender/team recipient config is empty by default. See [delivery rollout](docs/delivery-rollout.md) for the verified roster, unresolved Katie assignment, authenticated retry action and configuration. Tests use mocked transports; no live delivery was performed.
 
 ## Data and math
 
@@ -81,7 +81,7 @@ Every estimate includes: “Estimates are automated and not an appraisal. Ask yo
 | DATABASE_PATH | evaluator.sqlite3 locally |
 | RENTCAST_API_KEY | Primary provider key |
 | ATTOM_API_KEY / ENABLE_ATTOM | Optional provider; false by default |
-| ENABLE_FUB | false; integration remains simulated even when true |
+| ENABLE_FUB | false; real Events delivery requires enabling this flag and configuring credentials and a verified assignee |
 | ENABLE_EMAIL | false; owner summaries use a replaceable no-network sender |
 | EMAIL_FROM | Empty; sender address for owner and internal summaries |
 | ENABLE_TEAM_NOTIFICATIONS | false; also requires ENABLE_EMAIL |
@@ -120,18 +120,18 @@ Vercel project `mccann-portfolio-evaluator`, team `the-mike-mc-cann-team`. `pypr
 vercel deploy --target preview --scope the-mike-mc-cann-team
 ```
 
-Vercel is now connected to GitHub. Preview Branch Tracking was disabled on 2026-11-24; inspect the current project setting before pushing. Production remains separate and must not be deployed without authorization. No production promotion is implied. This preview seeds test agents and simulates CMA delivery; replace test agents and implement the approved delivery/access/retention workflow before a consumer rollout.
+Vercel is now connected to GitHub. Preview Branch Tracking was disabled on 2026-11-24; inspect the current project setting before pushing. Production remains separate and must not be deployed without authorization. No production promotion is implied. The roster is now file-backed and retires test agents. FUB/email flags remain off. Verify sender configuration, Katie assignment and staff access/retention before a consumer rollout.
 
 
 ## Frontend and sending-agent identity
 
-The responsive owner flow uses the supplied skyline, interior and McCann logo assets, Cormorant Garamond/Lato typography, square red buttons, underline inputs and white/black panels. It includes landing, loading, results, assumption controls, per-property CMA form, honest simulated-delivery confirmation, and not-found/limit/service errors. Address suggestions use Google Places API (New) through server-only endpoints, with a Philadelphia location bias, US address filtering, keyboard selection, and ZIP completion. Manual entry remains available. Backend financial defaults/formulas remain authoritative rather than adopting the mockups' conflicting sample defaults. Confidence descriptions reflect the actual backend heuristic, not unsupported claims about nearby comp counts.
+The responsive owner flow uses the supplied skyline, interior and McCann logo assets, Cormorant Garamond/Lato typography, square red buttons, underline inputs and white/black panels. It includes landing, loading, results, assumption controls, per-property CMA form, delivery-status confirmation, and not-found/limit/service errors. Address suggestions use Google Places API (New) through server-only endpoints, with a Philadelphia location bias, US address filtering, keyboard selection, and ZIP completion. Manual entry remains available. Backend financial defaults/formulas remain authoritative rather than adopting the mockups' conflicting sample defaults. Confidence descriptions reflect the actual backend heuristic, not unsupported claims about nearby comp counts.
 
 `GET /api/agent?slug=...` resolves a roster-controlled identity with `slug`, `full_name`, `first_name`, `title`, `photo_url`, `phone`, `email`. Invalid, absent and unknown slugs fall back to `mike-mccann`. Slugs accept only lowercase letters, digits and hyphens, up to 60 characters. Names and photo URLs are never taken from query parameters. Public responses omit FUB user IDs. Profile photos allow HTTPS or local /assets/ paths; unsafe schemes are discarded.
 
 An additive migration extends the existing agents table without overwriting configured profiles or FUB IDs. The default Mike McCann identity has empty photo/contact fields until verified roster data is connected. Missing/broken photos show initials on #d9d9d9; contact links are disabled when no verified contact is available. Agent photos are exactly 72×88 on landing, 38×46 on results, and 60×72 on the error strip, with cover cropping and center-top alignment.
 
-All screen navigation retains a recognized explicit `?agent=` slug. Generic links remain without an agent query; the default Mike display identity does not make them Mike-attributed leads. Evaluation snapshots and CMA requests store that slug, and mismatched CMA attribution is rejected server-side. Follow Up Boss delivery is still simulated; the preview clearly says requests are saved and no notification is sent. The future FUB connection must populate the roster and map each slug to its FUB user ID before real assignment is enabled.
+All screen navigation retains a recognized explicit `?agent=` slug. Generic links remain without an agent query; the default Mike display identity does not make them Mike-attributed leads. Evaluation snapshots and CMA requests store that slug, and mismatched CMA attribution is rejected server-side. Follow Up Boss delivery remains disabled. The configured roster maps approved agents by email to verified FUB IDs; Katie has no verified ID, so generic FUB delivery is held.
 
 ### Browser tests
 
@@ -168,4 +168,4 @@ Locked RentCast value policy and multi-unit behavior are documented in [the impl
 
 ## Ben’s display and contact flow
 
-The [November 2 requirements implementation](docs/evaluation-flow.md) adds condition guidance, address → contact → results steps, home/portfolio links, and persisted simulated follow-ups. Public evaluation requests now require `contact.name` and `contact.email`; `contact.phone` is optional. The internal `Evaluator` remains usable for offline analysis without a contact record.
+The [November 2 requirements implementation](docs/evaluation-flow.md) adds condition guidance, address → contact → results steps, home/portfolio links, and persisted follow-ups behind delivery flags. Public evaluation requests now require `contact.name` and `contact.email`; `contact.phone` is optional. The internal `Evaluator` remains usable for offline analysis without a contact record.
