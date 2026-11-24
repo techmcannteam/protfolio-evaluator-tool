@@ -527,6 +527,119 @@ def test_generic_fub_waits_for_verified_assignee(flow):
     assert not events
 
 
+@pytest.mark.parametrize("mode", ["home", "portfolio"])
+@pytest.mark.parametrize("agent", [None, "test-ben"])
+def test_cma_team_email_uses_saved_context_and_sends_once(flow, mode, agent):
+    client, repo, settings, provider, email, events = flow
+    result = client.post(
+        "/api/evaluate" + (f"?agent={agent}" if agent else ""), json=request(mode)
+    ).json()
+    calls = provider.calls
+    settings.enable_email = settings.enable_team_notifications = True
+    settings.internal_notification_recipients = (
+        "first@example.com",
+        "second@example.com",
+    )
+    body = {
+        "estimate_id": result["properties"][0]["estimate_id"],
+        "owner_name": "Test <Owner>",
+        "email": "owner@example.com",
+        "phone": "2155550100",
+        "agent_slug": agent or "mike-mccann",
+        "expected_value": 450000,
+        "note": "Please <script>alert(1)</script> prepare a CMA",
+    }
+    one = client.post("/api/cma-requests", json=body)
+    two = client.post("/api/cma-requests", json=body)
+    assert one.status_code == two.status_code == 201
+    assert one.json()["id"] == two.json()["id"]
+    assert len(email.messages) == 1
+    message = email.messages[0]
+    assert message["to"] == ["first@example.com", "second@example.com"]
+    assert message["from"] == "results@example.com"
+    assert message["subject"] == f"New McCann {mode} CMA request"
+    assert message["delivery_id"] == one.json()["id"] + ":team_email"
+    for content in (message["text"], message["html"]):
+        assert ADDRESS in content
+        assert "owner@example.com" in content and "2155550100" in content
+        assert "$400,000" in content
+        assert f"/evaluator/{mode}" + ("?agent=test-ben" if agent else "") in content
+        assert ("agent_link" if agent else "generic_link") in content
+        assert "?agent=mike-mccann" not in content
+    assert "$450,000" in message["html"]
+    assert "Test &lt;Owner&gt;" in message["html"]
+    assert "&lt;script&gt;" in message["html"] and "<script>" not in message["html"]
+    assert repo.delivery_statuses(one.json()["id"]) == {
+        "fub": "disabled",
+        "team_email": "simulated",
+    }
+    assert provider.calls == calls and not events
+
+
+@pytest.mark.parametrize(
+    "email_on,team_on", [(False, False), (True, False), (False, True)]
+)
+def test_cma_team_email_stays_saved_but_disabled_behind_both_flags(
+    flow, email_on, team_on
+):
+    client, repo, settings, _, email, events = flow
+    result = client.post("/api/evaluate", json=request()).json()
+    settings.enable_email, settings.enable_team_notifications = email_on, team_on
+    response = client.post(
+        "/api/cma-requests",
+        json={
+            "estimate_id": result["properties"][0]["estimate_id"],
+            "owner_name": "Test Owner",
+            "email": "owner@example.com",
+            "note": "CMA please",
+            "agent_slug": "mike-mccann",
+            "phone": "2155550100",
+        },
+    )
+    assert response.status_code == 201
+    assert repo.delivery_statuses(response.json()["id"]) == {
+        "fub": "disabled",
+        "team_email": "disabled",
+    }
+    assert not email.messages and not events
+
+
+def test_cma_team_email_failed_delivery_recovers_without_duplicate_or_provider_call(
+    flow,
+):
+    from backend.delivery_errors import DeliveryError
+    from backend.followups import EvaluationFollowups
+
+    client, repo, settings, provider, email, events = flow
+    result = client.post("/api/evaluate", json=request()).json()
+    calls = provider.calls
+    settings.enable_email = settings.enable_team_notifications = True
+    original = email.send
+    email.send = lambda _: (_ for _ in ()).throw(DeliveryError("smtp_rejected"))
+    response = client.post(
+        "/api/cma-requests",
+        json={
+            "estimate_id": result["properties"][0]["estimate_id"],
+            "owner_name": "Test Owner",
+            "email": "owner@example.com",
+            "note": "CMA please",
+            "agent_slug": "mike-mccann",
+            "phone": "2155550100",
+        },
+    )
+    identifier = response.json()["id"]
+    assert repo.delivery_statuses(identifier)["team_email"] == "failed"
+    due(repo, identifier, "team_email")
+    email.send = original
+    runner = EvaluationFollowups(repo, settings, email_sender=email)
+    runner.dispatch(identifier, "team_email", retry=True)
+    runner.dispatch(identifier, "team_email", retry=True)
+    assert repo.delivery_statuses(identifier)["team_email"] == "simulated"
+    assert len(email.messages) == 1
+    assert email.messages[0]["delivery_id"] == identifier + ":team_email"
+    assert provider.calls == calls and not events
+
+
 def test_legacy_outbox_payload_gets_stable_delivery_id_and_respects_grace_period(flow):
     from backend.followups import EvaluationFollowups
 

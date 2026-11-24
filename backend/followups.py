@@ -5,7 +5,7 @@ import json
 from .agents import SLUG
 from .config import DISCLAIMER
 from .delivery_errors import DeliveryError
-from .email_templates import email_html
+from .email_templates import cma_email_html, email_html
 from .follow_up_boss import FubSender, evaluation_event
 from .notifications import SmtpEmailSender
 from .roster import load_roster
@@ -178,14 +178,50 @@ class EvaluationFollowups:
         event = evaluation_event(contact, mode, routing["assignee_id"], description)
         event["person"]["tags"].append("cma-request")
         event["message"] = f"Owner requested a CMA after a {mode} evaluation."
+        link = f"/evaluator/{mode}" + (
+            f"?agent={routing['agent_slug']}" if routing["agent_slug"] else ""
+        )
+        internal = "\n".join(
+            [
+                f"Owner: {contact['name']}",
+                f"Email: {contact['email']}",
+                f"Phone: {contact.get('phone') or 'Not provided'}",
+                "",
+                f"Agent link: {link}",
+                f"Routing: {routing['kind']} ({routing['status']})",
+                "",
+                description,
+                "",
+                DISCLAIMER,
+            ]
+        )
         identifier = self.repository.save_cma(
             request,
             estimate,
             "pending",
             lead={"kind": "cma", "contact": contact, "mode": mode, "routing": routing},
-            deliveries={"fub": {"event": event, "routing": routing}},
+            deliveries={
+                "fub": {"event": event, "routing": routing},
+                "team_email": {
+                    "from": self.settings.email_from,
+                    "to": list(self.settings.internal_notification_recipients),
+                    "subject": f"New McCann {mode} CMA request",
+                    "text": internal,
+                    "html": cma_email_html(
+                        mode,
+                        contact,
+                        routing,
+                        link,
+                        estimate["address"],
+                        snapshot["value"]["estimate"],
+                        request.expected_value,
+                        request.note,
+                    ),
+                },
+            },
         )
         self.dispatch(identifier, "fub")
+        self.dispatch(identifier, "team_email")
         return identifier
 
     def recover(self, limit=10):

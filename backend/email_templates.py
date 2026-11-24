@@ -164,6 +164,45 @@ def email_html(result, mode, contact, *, routing=None, agent_link=None):
         'font-size:13px;line-height:24px;color:#4d4d4d;text-align:center;">'
         f"{escape(DISCLAIMER)}</div>"
     )
+    return _email_document(title, sections)
+
+
+def cma_email_html(mode, contact, routing, agent_link, address, value, expected, note):
+    """Internal CMA request using the same spaced, escaped site-themed layout."""
+    return _email_document(
+        f"New {mode} CMA request",
+        [
+            _heading("Owner details"),
+            _rows(
+                [
+                    ("Name", contact["name"]),
+                    ("Email", contact["email"]),
+                    ("Phone", contact.get("phone") or "Not provided"),
+                ],
+                financial=False,
+            ),
+            _heading("Agent link & routing"),
+            _paragraph(agent_link),
+            _paragraph(f"Routing: {routing['kind']} ({routing['status']})"),
+            _heading(address),
+            _paragraph("Owner requested an agent CMA."),
+            _rows(
+                [
+                    ("Provider estimate", _money(value)),
+                    (
+                        "Owner expected value",
+                        _money(expected) if expected is not None else "Not provided",
+                    ),
+                ]
+            ),
+            _heading("Owner note"),
+            _paragraph(note or "Not provided"),
+            _paragraph(DISCLAIMER),
+        ],
+    )
+
+
+def _email_document(title, sections):
     body = "".join(sections)
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
