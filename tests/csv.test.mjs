@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {parseCsv,mergeCsv} from '../frontend/assets/csv.mjs';
-import {ownerInputs} from '../frontend/assets/properties.mjs';
+import {ownerInputs,evaluationInputs,propertyTypes} from '../frontend/assets/properties.mjs';
 const address='2456 Sepviva St, Philadelphia, PA 19125';
 test('quoted full addresses, BOM, CRLF and blank rows',()=>{
  assert.deepEqual(mergeCsv('\uFEFFaddress\r\n"'+address+'"\r\n\r\n').addresses,[address]);
@@ -38,4 +38,24 @@ test('owner counts retain provenance and do not invent layouts',()=>{
  const mix=ownerInputs({unit_count:3,unit_mix_text:'1, 0, 1\n2, 2, 1, 900'}).unit_mix;
  assert.equal(mix[0].bedrooms,0);assert.equal(mix[0].square_footage,null);assert.equal(mix[1].count,2);
  assert.throws(()=>ownerInputs({unit_count:3,unit_mix_text:'2, 2, 1'}),/must equal/);
+});
+test('type errors list every supported type and all listed types import',()=>{
+ let message='';try{mergeCsv(`address,property_type\n"${address}",office`);}catch(error){message=error.message;}
+ for(const [id] of propertyTypes){
+  assert(message.includes(id),`Missing supported type ${id}`);
+  assert.equal(mergeCsv(`address,property_type\n"${address}",${id}`).properties[0].property_type,id);
+ }
+});
+test('owner subject facts import without inventing missing facts',()=>{
+ const row=mergeCsv(`address,property_type,bedrooms,bathrooms,square_footage\n"${address}",Townhouse,0,1.5,950`).properties[0];
+ assert.equal(row.bedrooms,0);assert.equal(row.bathrooms,1.5);assert.equal(row.square_footage,950);
+ assert.equal(evaluationInputs(row).square_footage,950);
+ assert.equal(ownerInputs({}).square_footage,undefined);
+ for(const facts of [{bedrooms:-1},{bedrooms:1.5},{bedrooms:true},{bathrooms:0},{square_footage:'NaN'},{square_footage:0}])assert.throws(()=>ownerInputs(facts),/owner-provided/);
+});
+test('condos may be imported for editing but require owner area before evaluating',()=>{
+ const row=mergeCsv(`address,property_type\n"${address}",Condo`).properties[0];
+ assert.throws(()=>evaluationInputs(row),/owner-provided square footage/);
+ assert.equal(evaluationInputs({...row,square_footage:950}).square_footage,950);
+ assert.equal(evaluationInputs({property_type:'Townhouse'}).square_footage,undefined);
 });

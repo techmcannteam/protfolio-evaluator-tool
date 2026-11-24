@@ -1,8 +1,50 @@
+import re
+
 from ..models import normalize_address
 from ..valuation import number, sum_unit_rents
 from .buildings import normalized_match
 
 BASE = "https://api.rentcast.io/v1"
+
+
+def value_params(property, known=None):
+    """Locked value-only settings. Known facts must describe this same subject."""
+    address = normalize_address(property.address)
+    params = {"address": address}
+    if property.property_type and property.property_type != "Mixed Use":
+        params["propertyType"] = property.property_type
+    if property.property_type in {"Single Family", "Townhouse"}:
+        params.update(daysOld=180, compCount=10)
+        # Use the city component when comma-separated, not a street-name match.
+        city = (
+            re.sub(
+                r"[,\s]+[a-z]{2}[,\s]+\d{5}(?:-\d{4})?$", "", property.address.lower()
+            )
+            .rsplit(",", 1)[-1]
+            .strip()
+        )
+        city_is_philadelphia = (
+            city == "philadelphia"
+            if "," in property.address
+            else bool(re.search(r"\bphiladelphia [a-z]{2} \d{5}(?:-\d{4})?$", address))
+        )
+        in_philadelphia = city_is_philadelphia or re.search(
+            r"\b191\d{2}(?:-\d{4})?$", address
+        )
+        params["maxRadius"] = 0.5 if in_philadelphia else 1.5
+        for field, api_field in (
+            ("bedrooms", "bedrooms"),
+            ("bathrooms", "bathrooms"),
+            ("square_footage", "squareFootage"),
+        ):
+            value = getattr(property, field)
+            if value is None:
+                value = number((known or {}).get(api_field), zero=field == "bedrooms")
+            if value is not None:
+                params[api_field] = value
+    elif property.property_type == "Condo" and property.square_footage is not None:
+        params["squareFootage"] = property.square_footage
+    return params
 
 
 def property_details(record):
@@ -102,13 +144,49 @@ class RentCast:
         params = {"address": address}
         if property.property_type and property.property_type != "Mixed Use":
             params["propertyType"] = property.property_type
+        # Reuse matching cached facts, never a legacy value metric or a paid lookup.
+        known = {}
+        if property.property_type in {"Single Family", "Townhouse"} and hasattr(
+            self.transport, "cached"
+        ):
+            for endpoint, query in [
+                ("/avm/value", params),
+                ("/properties", {"address": address, "limit": 1}),
+            ]:
+                record = (
+                    self.transport.cached(self.name, address, BASE + endpoint, query)
+                    or {}
+                )
+                details = record.get("details", {})
+                if (
+                    record.get("status") == "ok"
+                    and normalized_match(details) == address
+                    and not details.get("addressLine2")
+                    and details.get("propertyType") == property.property_type
+                ):
+                    known.update({k: v for k, v in details.items() if v is not None})
+        if property.property_type == "Condo" and property.square_footage is None:
+            return {
+                "provider": self.name,
+                "status": "needs_owner_input",
+                "cached": False,
+                "warnings": [
+                    "Condo evaluations require owner-provided square footage."
+                ],
+            }
         headers = {"X-Api-Key": self.key, "Accept": "application/json"}
         value = self.transport.get(
-            self.name, address, BASE + "/avm/value", params, headers, project_avm
+            self.name,
+            address,
+            BASE + "/avm/value",
+            value_params(property, known),
+            headers,
+            project_avm,
         )
         if value["status"] in (
             "provider_auth_error",
             "provider_rate_limited",
+            "not_found",
         ):
             return {"provider": self.name, **value}
         multi = bool(

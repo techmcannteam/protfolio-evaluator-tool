@@ -14,7 +14,7 @@ class Provider(Protocol):
 
 
 def cache_key(provider, address, url, params):
-    # Keep the original key format so existing paid responses remain reusable.
+    # Preserve keys for identical queries; changed settings produce different keys.
     return hashlib.sha256(
         json.dumps(
             [

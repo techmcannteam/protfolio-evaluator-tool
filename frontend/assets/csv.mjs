@@ -1,4 +1,4 @@
-import {propertyType, propertyRow, ownerInputs} from './properties.mjs';
+import {propertyTypes, propertyType, propertyRow, ownerInputs} from './properties.mjs';
 // CSV is parsed locally; only reviewed addresses are sent for evaluation.
 export const MAX_CSV_BYTES = 100 * 1024;
 const aliases = {street:'st',avenue:'ave',road:'rd',lane:'ln',drive:'dr',boulevard:'blvd',terrace:'ter',circle:'cir',court:'ct',place:'pl',pennsylvania:'pa',apartment:'unit',apt:'unit',suite:'unit'};
@@ -58,10 +58,10 @@ export function mergeCsv(text, existing=[]) {
     if(!validAddress(address))throw new Error(`CSV row ${i+1}: enter a full street address, city, two-letter state and ZIP. Include the unit number if applicable.`);
     const rawType=row[typeColumn]?.trim()||'', rawRental=(row[rentalColumn]||'').trim().toLowerCase();
     const type=propertyType(rawType);
-    if(rawType&&!type)throw new Error(`CSV row ${i+1}: property_type must be House, Rowhome / townhouse, Condo or 2–4 unit.`);
+    if(rawType&&!type)throw new Error(`CSV row ${i+1}: property_type must be ${propertyTypes.map(([id,label])=>id===label?id:`${label} (${id})`).join(', ')}.`);
     if(!['','yes','no'].includes(rawRental))throw new Error(`CSV row ${i+1}: is_rental must be yes or no.`);
     const owner={};
-    for(const key of ['unit_count','residential_unit_count','owner_source','actual_monthly_rent']){
+    for(const key of ['unit_count','residential_unit_count','owner_source','actual_monthly_rent','bedrooms','bathrooms','square_footage']){
       const column=find(key.replaceAll('_',''));
       if(column>=0&&row[column].trim())owner[key]=row[column].trim();
     }

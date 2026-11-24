@@ -148,8 +148,11 @@ Autocomplete requires `GOOGLE_PLACES_API_KEY` on the server. Requests are deboun
 
 Each address has a required property type and an optional rental flag (off by default). `/api/property-record` reuses RentCast's `/properties` adapter and existing provider cache/budget. It never runs AVMs. Unsupported or unavailable record types require an owner selection. Owner overrides flow to RentCast's existing `propertyType` parameter. Evaluation responses retain both fields; non-rentals have no cap rate and only rentals contribute to aggregate NOI/cap rate.
 
-CSV accepts optional `property_type` (House, Rowhome / townhouse, Condo, 2–4 unit, or the matching existing provider enum) and `is_rental` (yes/no). Missing type is resolved on entry; missing rental status is false.
+CSV accepts optional `property_type` (House, Rowhome / townhouse, Condo, 2–4 unit, Apartment, Mixed Use, Manufactured, or the matching existing provider enum) and `is_rental` (yes/no). Missing type is resolved on entry; missing rental status is false.
 
 The existing roster `photo_url` field supports local `/agents/<slug>.jpg` paths; that slug path is also the default. Place Mike's file at `public/agents/mike-mccann.jpg`. FastAPI serves it at `/agents/mike-mccann.jpg`. Remote headshot URLs are not used. The shared renderer is used on entry, results, CMA, and confirmation, with initials on missing/failed images.
 
 Review screenshots use synthetic local records and estimates, not live provider valuations.
+
+
+Locked RentCast value policy and multi-unit behavior are documented in [the implementation plan](docs/multi-unit-rent-plan.md#locked-rentcast-settings-1021-decision-implemented-1124). Owner inputs `bedrooms`, `bathrooms`, and `square_footage` are available in the form, CSV and API. Condos require owner-provided square footage before evaluation; imported condo rows can be completed in the form. ATTOM remains disabled by default.

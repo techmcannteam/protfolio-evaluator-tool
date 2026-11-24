@@ -75,6 +75,9 @@ class PropertyInput(Model):
         ]
         | None
     ) = None
+    bedrooms: int | None = Field(None, ge=0, le=30, strict=True)
+    bathrooms: float | None = Field(None, gt=0, le=30)
+    square_footage: float | None = Field(None, gt=0, le=100000)
     unit_count: int | None = Field(None, ge=1, le=500, strict=True)
     residential_unit_count: int | None = Field(None, ge=0, le=500, strict=True)
     unit_mix: list[UnitType] | None = Field(None, min_length=1, max_length=30)
@@ -125,6 +128,8 @@ class EvaluateRequest(Model):
         keys = [normalize_address(x.address) for x in result]
         if len(set(keys)) != len(keys):
             raise ValueError("Remove duplicate property addresses.")
+        if any(p.property_type == "Condo" and p.square_footage is None for p in result):
+            raise ValueError("Condo evaluations require owner-provided square footage.")
         return result
 
 

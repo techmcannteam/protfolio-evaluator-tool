@@ -527,7 +527,7 @@ def test_only_rentals_contribute_to_cap_rate(setup):
     client, _, _ = setup
     result = client.post('/api/evaluate', json={'addresses': [
         {'address': ADDRESS, 'property_type': 'Townhouse', 'is_rental': True},
-        {'address': '3424 Wallace St, Philadelphia, PA 19104', 'property_type': 'Condo'},
+        {'address': '3424 Wallace St, Philadelphia, PA 19104', 'property_type': 'Condo', 'square_footage': 900},
     ]}).json()
     rental, owner = result['properties']
     assert rental['is_rental'] is True

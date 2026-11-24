@@ -1,4 +1,4 @@
-export const propertyTypes = [['Single Family','House'],['Townhouse','Rowhome / townhouse'],['Condo','Condo'],['Multi-Family','2–4 unit'],['Apartment','5+ unit building'],['Mixed Use','Mixed-use building']];
+export const propertyTypes = [['Single Family','House'],['Townhouse','Rowhome / townhouse'],['Condo','Condo'],['Multi-Family','2–4 unit'],['Apartment','5+ unit building'],['Mixed Use','Mixed-use building'],['Manufactured','Manufactured']];
 export function propertyType(value) {
  const text=String(value||'').trim().toLowerCase();
  const aliases={'rowhome':'Townhouse','townhouse':'Townhouse','2-4 unit':'Multi-Family','2–4 unit':'Multi-Family'};
@@ -8,6 +8,12 @@ export function propertyRow(value='') {return typeof value==='string'?{address:v
 
 export function ownerInputs(row) {
  const result={owner_source:String(row.owner_source||'Owner-provided').trim()};
+ for(const key of ['bedrooms','bathrooms','square_footage']) {
+  if(row[key]==null||String(row[key]).trim()==='')continue;
+  const n=Number(row[key]);
+  if(typeof row[key]==='boolean'||!Number.isFinite(n)||(key==='bedrooms'?(!Number.isInteger(n)||n<0||n>30):(n<=0||n>(key==='bathrooms'?30:100000))))throw new Error('Enter valid owner-provided bedrooms, bathrooms and square footage. Leave unknown fields blank.');
+  result[key]=n;
+ }
  for(const key of ['unit_count','residential_unit_count','actual_monthly_rent']) {
   if(row[key]==null||String(row[key]).trim()==='')continue;
   const n=Number(row[key]);
@@ -28,4 +34,10 @@ export function ownerInputs(row) {
   if(row.property_type==='Mixed Use'&&result.residential_unit_count==null)throw new Error('Enter the residential unit count for a mixed-use building.');
  }
  return result;
+}
+
+export function evaluationInputs(row) {
+ const inputs=ownerInputs(row);
+ if(row.property_type==='Condo'&&inputs.square_footage==null)throw new Error('Condo evaluations require owner-provided square footage.');
+ return inputs;
 }

@@ -124,6 +124,10 @@ const check=(label)=>{passed++;console.log('PASS',label);};
  await page.getByRole('button',{name:'Add another property'}).click();
  await page.fill('#address-1','219 S 18th St Unit 902, Philadelphia, PA 19103');await page.locator('#address-1').blur();
  await page.waitForFunction(()=>document.querySelector('#type-1').value==='Condo');
+ await page.getByRole('button',{name:"See what it's worth"}).click();
+ assert.match(await page.locator('#address-error').innerText(),/owner-provided square footage/);
+ await page.fill('#square_footage-1','900');
+ await page.fill('#bedrooms-0','3');await page.fill('#bathrooms-0','1.5');await page.fill('#square_footage-0','1480');
  for(const width of [1440,390]){
   await page.setViewportSize({width,height:1000});
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
@@ -132,6 +136,7 @@ const check=(label)=>{passed++;console.log('PASS',label);};
  const mixedSent=page.waitForRequest(r=>r.url().includes('/api/evaluate'));
  await page.getByRole('button',{name:"See what it's worth"}).click();
  const mixedPayload=(await mixedSent).postDataJSON().addresses;
+ assert.equal(mixedPayload[1].square_footage,900);assert.equal(mixedPayload[0].bedrooms,3);assert.equal(mixedPayload[0].bathrooms,1.5);assert.equal(mixedPayload[0].square_footage,1480);
  assert.deepEqual(mixedPayload.map(p=>[p.property_type,p.is_rental]),[['Townhouse',true],['Condo',false]]);
  await page.getByRole('heading',{name:"Here's What It's Worth"}).waitFor();
  assert.equal(await page.locator('[data-cap]').count(),1);
