@@ -30,6 +30,17 @@ class Capture:
         return {"status": "not_found", "cached": True}
 
 
+@pytest.mark.parametrize("kind", ["Single Family", "Townhouse", "Condo"])
+def test_condition_answer_does_not_change_provider_queries_or_cache_keys(kind):
+    prop = PropertyInput(address=ADDRESS, property_type=kind, square_footage=950)
+    original, updated = Capture(), Capture()
+    RentCast(original, "synthetic").evaluate(prop)
+    RentCast(updated, "synthetic").evaluate(
+        prop.model_copy(update={"recently_updated": True})
+    )
+    assert original.calls == updated.calls
+
+
 @pytest.mark.parametrize("kind", ["Single Family", "Townhouse"])
 @pytest.mark.parametrize(
     "location,radius",
@@ -170,7 +181,13 @@ def test_condo_missing_owner_area_cannot_use_provider_area_or_call_provider(tmp_
     with TestClient(
         create_app(settings, providers=[RentCast(transport, "synthetic")])
     ) as client:
-        response = client.post("/api/evaluate", json={"addresses": [prop.model_dump()]})
+        response = client.post(
+            "/api/evaluate",
+            json={
+                "contact": {"name": "Synthetic Owner", "email": "owner@example.com"},
+                "addresses": [prop.model_dump()],
+            },
+        )
     assert response.status_code == 422 and transport.calls == []
 
 

@@ -17,6 +17,8 @@ CREATE INDEX IF NOT EXISTS provider_calls_time ON provider_calls(timestamp);
 CREATE TABLE IF NOT EXISTS counters (counter_key TEXT PRIMARY KEY, count INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS estimates (id TEXT PRIMARY KEY, address TEXT NOT NULL, agent_slug TEXT, payload TEXT NOT NULL, timestamp DOUBLE PRECISION NOT NULL);
 CREATE TABLE IF NOT EXISTS cma_requests (id TEXT PRIMARY KEY, estimate_id TEXT NOT NULL REFERENCES estimates(id), owner_name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL, property TEXT NOT NULL, our_estimate DOUBLE PRECISION NOT NULL, expected_value DOUBLE PRECISION, note TEXT NOT NULL, agent_slug TEXT NOT NULL REFERENCES agents(slug), timestamp DOUBLE PRECISION NOT NULL, fub_status TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS evaluation_leads (id TEXT PRIMARY KEY, payload TEXT NOT NULL, timestamp DOUBLE PRECISION NOT NULL);
+CREATE TABLE IF NOT EXISTS evaluation_deliveries (evaluation_id TEXT NOT NULL REFERENCES evaluation_leads(id), kind TEXT NOT NULL, payload TEXT NOT NULL, status TEXT NOT NULL, PRIMARY KEY(evaluation_id,kind));
 """
 
 
@@ -265,3 +267,48 @@ class Repository:
                 ),
             )
         return identifier
+
+    def save_evaluation_lead(self, payload, deliveries):
+        identifier = str(uuid.uuid4())
+        with self.transaction() as db:
+            db.execute(
+                "INSERT INTO evaluation_leads VALUES(?,?,?)",
+                (identifier, json.dumps(payload), time.time()),
+            )
+            for kind, message in deliveries.items():
+                db.execute(
+                    "INSERT INTO evaluation_deliveries VALUES(?,?,?,?)",
+                    (
+                        identifier,
+                        kind,
+                        json.dumps(message),
+                        "waiting_for_results" if kind == "owner_email" else "pending",
+                    ),
+                )
+        return identifier
+
+    def claim_delivery(self, identifier, kind, results_shown=False):
+        expected = "waiting_for_results" if results_shown else "pending"
+        with self.transaction() as db:
+            row = db.execute(
+                "UPDATE evaluation_deliveries SET status='processing' WHERE evaluation_id=? AND kind=? AND status=? RETURNING payload",
+                (identifier, kind, expected),
+            ).fetchone()
+        return json.loads(row["payload"]) if row else None
+
+    def finish_delivery(self, identifier, kind, status):
+        with self.transaction() as db:
+            db.execute(
+                "UPDATE evaluation_deliveries SET status=? WHERE evaluation_id=? AND kind=?",
+                (status, identifier, kind),
+            )
+
+    def delivery_statuses(self, identifier):
+        with self.transaction() as db:
+            return {
+                r["kind"]: r["status"]
+                for r in db.execute(
+                    "SELECT kind,status FROM evaluation_deliveries WHERE evaluation_id=?",
+                    (identifier,),
+                ).fetchall()
+            }

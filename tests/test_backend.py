@@ -115,7 +115,7 @@ def test_api_cma(setup):
         a["slug"] == "test-ben" for a in client.get("/api/agents").json()["agents"]
     )
     result = client.post(
-        "/api/evaluate?agent=test-ben", json={"addresses": [{"address": ADDRESS, "is_rental": True}]}
+        "/api/evaluate?agent=test-ben", json={"contact": {"name": "Synthetic Owner", "email": "owner@example.com"}, "addresses": [{"address": ADDRESS, "is_rental": True}]}
     ).json()
     assert result["disclaimer"] == DISCLAIMER
     assert result["totals"]["cap_rate"] == 0.046
@@ -157,16 +157,16 @@ def test_validation_and_overrides(setup):
         {"addresses": [ADDRESS], "assumptions": {"vacancy": 2}},
         {"addresses": ["not an address"]},
     ]:
-        assert c.post("/api/evaluate", json=data).status_code == 422
+        assert c.post("/api/evaluate", json={"contact": {"name": "Synthetic Owner", "email": "owner@example.com"}, **data}).status_code == 422
     assert (
-        c.post("/api/evaluate?agent=missing", json={"addresses": [ADDRESS]}).json()[
+        c.post("/api/evaluate?agent=missing", json={"contact": {"name": "Synthetic Owner", "email": "owner@example.com"}, "addresses": [ADDRESS]}).json()[
             "agent"
         ]
         == "mike-mccann"
     )
     result = c.post(
         "/api/evaluate",
-        json={"addresses": [ADDRESS], "assumptions": {"annual_taxes": 1000}},
+        json={"contact": {"name": "Synthetic Owner", "email": "owner@example.com"}, "addresses": [ADDRESS], "assumptions": {"annual_taxes": 1000}},
     ).json()
     assert result["properties"][0]["operating"]["annual_taxes"] == 1000
     assert result["properties"][0]["assumptions"]["vacancy"] == 0.05
@@ -175,10 +175,10 @@ def test_validation_and_overrides(setup):
 def test_rate_limit_ignores_spoofed_headers(setup):
     c, _, settings = setup
     settings.rate_limit = 1
-    assert c.post("/api/evaluate", json={"addresses": [ADDRESS]}).status_code == 200
+    assert c.post("/api/evaluate", json={"contact": {"name": "Synthetic Owner", "email": "owner@example.com"}, "addresses": [ADDRESS]}).status_code == 200
     response = c.post(
         "/api/evaluate",
-        json={"addresses": [ADDRESS]},
+        json={"contact": {"name": "Synthetic Owner", "email": "owner@example.com"}, "addresses": [ADDRESS]},
         headers={"x-forwarded-for": "1.2.3.4"},
     )
     assert response.status_code == 429 and response.headers["Retry-After"]
@@ -430,7 +430,7 @@ def test_roster_profile_and_attribution(setup):
     assert agent["full_name"] == "Jane Agent" and agent["phone"] == "+12155550100"
     assert "fub_user_id" not in agent
     result = client.post(
-        "/api/evaluate?agent=jane-agent", json={"addresses": [ADDRESS]}
+        "/api/evaluate?agent=jane-agent", json={"contact": {"name": "Synthetic Owner", "email": "owner@example.com"}, "addresses": [ADDRESS]}
     ).json()
     identifier = result["properties"][0]["estimate_id"]
     response = client.post(
@@ -525,7 +525,7 @@ def test_attom_live_scale_and_cached_confidence():
 
 def test_only_rentals_contribute_to_cap_rate(setup):
     client, _, _ = setup
-    result = client.post('/api/evaluate', json={'addresses': [
+    result = client.post('/api/evaluate', json={'contact': {'name': 'Synthetic Owner', 'email': 'owner@example.com'}, 'addresses': [
         {'address': ADDRESS, 'property_type': 'Townhouse', 'is_rental': True},
         {'address': '3424 Wallace St, Philadelphia, PA 19104', 'property_type': 'Condo', 'square_footage': 900},
     ]}).json()
@@ -536,7 +536,7 @@ def test_only_rentals_contribute_to_cap_rate(setup):
     assert owner['operating']['cap_rate'] is None
     assert result['totals']['cap_rate'] == rental['operating']['cap_rate']
     assert result['totals']['annual_noi'] == rental['operating']['annual_noi']
-    result = client.post('/api/evaluate', json={'addresses': [ADDRESS]}).json()
+    result = client.post('/api/evaluate', json={'contact': {'name': 'Synthetic Owner', 'email': 'owner@example.com'}, 'addresses': [ADDRESS]}).json()
     assert result['totals']['cap_rate'] is None
     assert result['properties'][0]['is_rental'] is False
 

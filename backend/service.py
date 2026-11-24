@@ -2,6 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from .config import DISCLAIMER
 from .models import normalize_address
+from .presentation import condition_display
 from .providers.base import budget_reset
 from .valuation import blend, calculate
 
@@ -61,6 +62,9 @@ class Evaluator:
             }
             if not property.is_rental and result["operating"]:
                 result["operating"]["cap_rate"] = None
+            result["display_value"] = condition_display(
+                result["value"], property.recently_updated
+            )
             result["warnings"] = list(
                 dict.fromkeys(w for s in sources for w in s.get("warnings", []))
             )

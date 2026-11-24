@@ -22,13 +22,16 @@ The original brief referred to “section 3” without supplying paths. These pa
 | GET /health | Database health and simulated FUB status |
 | GET /api/agents | Public agent slugs/names |
 | GET /api/config | Assumptions, limits and disclaimer |
-| POST /api/evaluate?agent=test-ben | Evaluate 1–10 addresses and portfolio totals |
+| GET /evaluator/home | One-address flow |
+| GET /evaluator/portfolio | Multiple addresses and CSV upload |
+| POST /api/evaluate?agent=test-ben | Contact-required evaluation; home mode accepts one address |
+| POST /api/evaluations/{id}/results-shown | Idempotently process the saved owner-summary stub after results display |
 | POST /api/cma-requests | Save a CMA request using a server-issued estimate id |
 
 Evaluation example:
 
 ```json
-{"addresses":[{"address":"2456 Sepviva St, Philadelphia, PA 19125","property_type":"Townhouse"}],"assumptions":{"vacancy":0.05}}
+{"mode":"home","contact":{"name":"Example Owner","email":"owner@example.com"},"addresses":[{"address":"2456 Sepviva St, Philadelphia, PA 19125","property_type":"Townhouse","recently_updated":true}],"assumptions":{"vacancy":0.05}}
 ```
 
 Addresses may also be strings. Property types are optional. Include city, state and ZIP; retain unit numbers. Duplicate normalized addresses are rejected. The agent may be supplied in the query or body; the query takes precedence.
@@ -41,7 +44,7 @@ CMA example (replace estimate_id with one returned by evaluation):
 
 The property and our estimate are loaded from the saved server result, never trusted from the client. Attributed estimates cannot be reassigned to another agent. Contacts have no public read endpoint. The seeded `test-ben`, `test-nicole`, and `test-mccann` agents use example.com emails and are explicitly labeled test agents.
 
-**FUB remains simulated.** ENABLE_FUB defaults to false; even when true, pushToFUB(request) is a no-network stub with a TODO for Events API lead creation and assignment. No CRM lead, email or notification is sent.
+**FUB remains simulated.** ENABLE_FUB defaults to false; even when true, pushToFUB(request) is a no-network stub using the Events API payload shape and configured assignment. Email and team notifications also use no-network stubs. No CRM lead, email or notification is sent.
 
 ## Data and math
 
@@ -68,7 +71,7 @@ Every estimate includes: “Estimates are automated and not an appraisal. Ask yo
 - IP limits persist across Vercel instances: 20 evaluations/hour and 5 CMA requests/hour. IPs are HMAC-hashed; only Vercel's overwritten client-IP header is trusted in deployment.
 - Provider audit records contain provider, normalized address, endpoint, cache flag, status and timestamp. No credentials, request headers, provider exception strings or contact payloads are logged.
 - Keys remain server-side. Same-origin access by default; optional explicit CORS allowlist. Responses use no-store and noindex headers.
-- Tables: portfolio_evaluator.agents, provider_cache, provider_calls, counters, estimates, cma_requests. The permit application's tables are outside the search path.
+- Tables: portfolio_evaluator.agents, provider_cache, provider_calls, counters, estimates, cma_requests, evaluation_leads, evaluation_deliveries. The permit application's tables are outside the search path.
 
 ## Environment
 
@@ -79,6 +82,11 @@ Every estimate includes: “Estimates are automated and not an appraisal. Ask yo
 | RENTCAST_API_KEY | Primary provider key |
 | ATTOM_API_KEY / ENABLE_ATTOM | Optional provider; false by default |
 | ENABLE_FUB | false; integration remains simulated even when true |
+| ENABLE_EMAIL | false; owner summaries use a replaceable no-network sender |
+| EMAIL_FROM | Empty; sender address for owner and internal summaries |
+| ENABLE_TEAM_NOTIFICATIONS | false; also requires ENABLE_EMAIL |
+| INTERNAL_NOTIFICATION_RECIPIENTS | Empty; comma-separated internal email list |
+| FUB_GENERIC_ASSIGNEE_ID | Empty; set to Mike McCann’s assistant’s verified FUB user ID |
 | IP_HASH_SALT | Private random value, required on Vercel |
 | RATE_LIMIT_PER_HOUR | 20 |
 | PROVIDER_DAILY_CALL_LIMIT | 30 per provider per UTC day; 0 blocks misses |
@@ -112,7 +120,7 @@ Vercel project `mccann-portfolio-evaluator`, team `the-mike-mc-cann-team`. `pypr
 vercel deploy --target preview --scope the-mike-mc-cann-team
 ```
 
-Vercel rejected automatic GitHub linking (`repo_no_access`); CLI snapshot deployment is independent. Automatic deployments on push are not configured. No production promotion is implied. This preview seeds test agents and simulates CMA delivery; replace test agents and implement the approved delivery/access/retention workflow before a consumer rollout.
+Vercel is now connected to GitHub. Preview Branch Tracking was disabled on 2026-11-24; inspect the current project setting before pushing. Production remains separate and must not be deployed without authorization. No production promotion is implied. This preview seeds test agents and simulates CMA delivery; replace test agents and implement the approved delivery/access/retention workflow before a consumer rollout.
 
 
 ## Frontend and sending-agent identity
@@ -123,7 +131,7 @@ The responsive owner flow uses the supplied skyline, interior and McCann logo as
 
 An additive migration extends the existing agents table without overwriting configured profiles or FUB IDs. The default Mike McCann identity has empty photo/contact fields until verified roster data is connected. Missing/broken photos show initials on #d9d9d9; contact links are disabled when no verified contact is available. Agent photos are exactly 72×88 on landing, 38×46 on results, and 60×72 on the error strip, with cover cropping and center-top alignment.
 
-All screen navigation retains the server-resolved `?agent=` slug. Evaluation snapshots and CMA requests store that slug, and mismatched CMA attribution is rejected server-side. Follow Up Boss delivery is still simulated; the preview clearly says requests are saved and no notification is sent. The future FUB connection must populate the roster and map each slug to its FUB user ID before real assignment is enabled.
+All screen navigation retains a recognized explicit `?agent=` slug. Generic links remain without an agent query; the default Mike display identity does not make them Mike-attributed leads. Evaluation snapshots and CMA requests store that slug, and mismatched CMA attribution is rejected server-side. Follow Up Boss delivery is still simulated; the preview clearly says requests are saved and no notification is sent. The future FUB connection must populate the roster and map each slug to its FUB user ID before real assignment is enabled.
 
 ### Browser tests
 
@@ -156,3 +164,8 @@ Review screenshots use synthetic local records and estimates, not live provider 
 
 
 Locked RentCast value policy and multi-unit behavior are documented in [the implementation plan](docs/multi-unit-rent-plan.md#locked-rentcast-settings-1021-decision-implemented-1124). Owner inputs `bedrooms`, `bathrooms`, and `square_footage` are available in the form, CSV and API. Condos require owner-provided square footage before evaluation; imported condo rows can be completed in the form. ATTOM remains disabled by default.
+
+
+## Ben’s display and contact flow
+
+The [November 2 requirements implementation](docs/evaluation-flow.md) adds condition guidance, address → contact → results steps, home/portfolio links, and persisted simulated follow-ups. Public evaluation requests now require `contact.name` and `contact.email`; `contact.phone` is optional. The internal `Evaluator` remains usable for offline analysis without a contact record.

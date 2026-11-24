@@ -62,6 +62,7 @@ class UnitType(Model):
 
 class PropertyInput(Model):
     is_rental: bool = False
+    recently_updated: bool | None = Field(None, strict=True)
     address: str = Field(min_length=10, max_length=250)
     property_type: (
         Literal[
@@ -131,6 +132,25 @@ class EvaluateRequest(Model):
         if any(p.property_type == "Condo" and p.square_footage is None for p in result):
             raise ValueError("Condo evaluations require owner-provided square footage.")
         return result
+
+
+class EvaluationContact(Model):
+    name: str = Field(min_length=2, max_length=150)
+    email: EmailStr
+    phone: str | None = Field(
+        None, min_length=7, max_length=30, pattern=r"^\+?[0-9 ()\-.]+$"
+    )
+
+
+class PublicEvaluateRequest(EvaluateRequest):
+    contact: EvaluationContact
+    mode: Literal["home", "portfolio"] = "portfolio"
+
+    @model_validator(mode="after")
+    def single_home(self):
+        if self.mode == "home" and len(self.addresses) != 1:
+            raise ValueError("Home evaluations accept exactly one address.")
+        return self
 
 
 class CMARequest(Model):

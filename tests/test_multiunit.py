@@ -222,5 +222,5 @@ def test_attom_disabled_never_constructed(tmp_path, monkeypatch):
         attom_key="unused",
     )
     with TestClient(main.create_app(settings)) as client:
-        result = client.post("/api/evaluate", json={"addresses": [ADDRESS]}).json()
+        result = client.post("/api/evaluate", json={"contact": {"name": "Synthetic Owner", "email": "owner@example.com"}, "addresses": [ADDRESS]}).json()
     assert [s["provider"] for s in result["properties"][0]["sources"]] == ["rentcast"]

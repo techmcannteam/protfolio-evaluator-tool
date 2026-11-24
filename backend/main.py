@@ -4,6 +4,7 @@ import re
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
+from uuid import UUID
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
@@ -14,7 +15,8 @@ from fastapi.staticfiles import StaticFiles
 from .agents import resolve_agent
 from .config import DISCLAIMER, Settings
 from .follow_up_boss import pushToFUB
-from .models import CMARequest, EvaluateRequest, PropertyInput
+from .followups import EvaluationFollowups
+from .models import CMARequest, PropertyInput, PublicEvaluateRequest
 from .places import lookup
 from .providers.attom import Attom
 from .providers.base import Transport
@@ -23,7 +25,9 @@ from .repository import Repository
 from .service import Evaluator
 
 
-def create_app(settings=None, repository=None, providers=None):
+def create_app(
+    settings=None, repository=None, providers=None, email_sender=None, fub_sender=None
+):
     settings = settings or Settings()
     repository = repository or Repository(settings)
     if settings.vercel and settings.ip_salt == "local-development-only":
@@ -36,6 +40,7 @@ def create_app(settings=None, repository=None, providers=None):
         + ([Attom(transport, settings.attom_key)] if settings.enable_attom else [])
     )
     evaluator = Evaluator(repository, providers, settings)
+    followups = EvaluationFollowups(repository, settings, email_sender, fub_sender)
 
     @asynccontextmanager
     async def lifespan(app):
@@ -110,7 +115,9 @@ def create_app(settings=None, repository=None, providers=None):
         now = time.time()
         if not repository.consume(
             f"ip:{category}:{fingerprint}:{int(now // 3600)}",
-            settings.rate_limit if category in ("evaluate", "record") else (120 if category == "places" else 5),
+            settings.rate_limit
+            if category in ("evaluate", "record", "results_shown")
+            else (120 if category == "places" else 5),
         ):
             raise HTTPException(
                 429,
@@ -130,15 +137,23 @@ def create_app(settings=None, repository=None, providers=None):
         )
 
     @app.get("/evaluator", include_in_schema=False)
+    @app.get("/evaluator/home", include_in_schema=False)
+    @app.get("/evaluator/portfolio", include_in_schema=False)
     def frontend_page():
         return FileResponse(frontend / "index.html")
 
     def places_limit(request):
         if not settings.google_places_key:
-            raise HTTPException(503, "Address suggestions are unavailable. Enter the full address manually.")
+            raise HTTPException(
+                503,
+                "Address suggestions are unavailable. Enter the full address manually.",
+            )
         limit(request, "places")
         if not repository.consume(f"places:daily:{int(time.time() // 86400)}", 1000):
-            raise HTTPException(429, "Address suggestions have reached today's limit. Enter the full address manually.")
+            raise HTTPException(
+                429,
+                "Address suggestions have reached today's limit. Enter the full address manually.",
+            )
 
     @app.get("/api/address-suggestions")
     def address_suggestions(
@@ -195,15 +210,26 @@ def create_app(settings=None, repository=None, providers=None):
 
     @app.post("/api/evaluate")
     def evaluate(
-        body: EvaluateRequest,
+        body: PublicEvaluateRequest,
         request: Request,
         agent: str | None = Query(None),
     ):
         limit(request, "evaluate")
-        attribution = resolve_agent(
-            repository, agent if agent is not None else body.agent
-        )["slug"]
-        return evaluator.evaluate(body, attribution)
+        requested_slug = agent if agent is not None else body.agent
+        attribution = resolve_agent(repository, requested_slug)["slug"]
+        result = evaluator.evaluate(body, attribution)
+        result["evaluation_id"] = followups.record(body, result, requested_slug)
+        result["delivery"] = repository.delivery_statuses(result["evaluation_id"])
+        return result
+
+    @app.post("/api/evaluations/{evaluation_id}/results-shown")
+    def results_shown(evaluation_id: UUID, request: Request):
+        limit(request, "results_shown")
+        identifier = str(evaluation_id)
+        if not repository.delivery_statuses(identifier):
+            raise HTTPException(404, "Evaluation not found.")
+        followups.dispatch(identifier, "owner_email", results_shown=True)
+        return {"owner_email": repository.delivery_statuses(identifier)["owner_email"]}
 
     @app.post("/api/cma-requests", status_code=201)
     def cma(body: CMARequest, request: Request):

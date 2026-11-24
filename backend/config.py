@@ -41,6 +41,25 @@ class Settings:
     enable_fub: bool = field(
         default_factory=lambda: os.getenv("ENABLE_FUB", "false").lower() == "true"
     )
+    enable_email: bool = field(
+        default_factory=lambda: os.getenv("ENABLE_EMAIL", "false").lower() == "true"
+    )
+    enable_team_notifications: bool = field(
+        default_factory=lambda: (
+            os.getenv("ENABLE_TEAM_NOTIFICATIONS", "false").lower() == "true"
+        )
+    )
+    email_from: str = field(default_factory=lambda: os.getenv("EMAIL_FROM", ""))
+    internal_notification_recipients: tuple[str, ...] = field(
+        default_factory=lambda: tuple(
+            x.strip()
+            for x in os.getenv("INTERNAL_NOTIFICATION_RECIPIENTS", "").split(",")
+            if x.strip()
+        )
+    )
+    fub_generic_assignee_id: str = field(
+        default_factory=lambda: os.getenv("FUB_GENERIC_ASSIGNEE_ID", "")
+    )
     rate_limit: int = field(
         default_factory=lambda: int(os.getenv("RATE_LIMIT_PER_HOUR", "20"))
     )
