@@ -2,6 +2,7 @@
 
 from .agents import SLUG
 from .config import DISCLAIMER
+from .email_templates import email_html
 from .follow_up_boss import evaluation_event, pushToFUB
 from .notifications import StubEmailSender
 
@@ -27,7 +28,7 @@ def resolve_routing(repository, settings, requested_slug):
     }
 
 
-def summary_text(result):
+def summary_text(result, mode="portfolio"):
     def money(value):
         return "Unavailable" if value is None else f"${value:,.0f}"
 
@@ -38,13 +39,16 @@ def summary_text(result):
         lines.extend(
             [
                 row["address"],
+                "",
                 f"Most likely: {money(display.get('most_likely'))}",
                 f"Condition guide: {money(value.get('low'))} needs work — {money(value.get('high'))} renovated / updated",
+                "",
                 display.get("explanation", "Whole-building value needs agent review."),
+                "",
                 f"Provider estimate: {money(value.get('estimate'))}",
                 f"Monthly rent: {money((row.get('rent') or {}).get('estimate'))}",
                 f"Cap rate: {cap:.2%}" if cap is not None else "Cap rate: Unavailable",
-                *row.get("warnings", []),
+                *(["", *row["warnings"]] if row.get("warnings") else []),
                 "",
             ]
         )
@@ -54,21 +58,24 @@ def summary_text(result):
         for r in result["properties"]
         if r.get("display_value")
     ]
+    cap_label = "Cap rate" if mode == "home" else "Portfolio cap rate"
     lines.extend(
         [
             f"Properties valued: {totals['properties_valued']} of {totals['properties_requested']}",
+            "",
             f"Most likely total (available values): {money(sum(indicated) if indicated else None)}",
             f"Provider total (available values): {money(totals['estimated_value'] if totals['properties_valued'] else None)}",
             f"Total monthly rent: {money(totals['monthly_rent'])}",
-            f"Portfolio cap rate: {totals['cap_rate']:.2%}"
+            f"{cap_label}: {totals['cap_rate']:.2%}"
             if totals["cap_rate"] is not None
-            else "Portfolio cap rate: Unavailable",
+            else f"{cap_label}: Unavailable",
             "",
         ]
     )
     lines.extend(
         [
             "Cap rates use the provider estimate and operating assumptions; condition guidance changes only the displayed indication.",
+            "",
             DISCLAIMER,
         ]
     )
@@ -87,12 +94,13 @@ class EvaluationFollowups:
         link = f"/evaluator/{request.mode}" + (
             f"?agent={routing['agent_slug']}" if routing["agent_slug"] else ""
         )
-        summary = summary_text(result)
+        summary = summary_text(result, request.mode)
         internal = "\n".join(
             [
                 f"Owner: {contact['name']}",
                 f"Email: {contact['email']}",
                 f"Phone: {contact.get('phone') or 'Not provided'}",
+                "",
                 f"Agent link: {link}",
                 f"Routing: {routing['kind']} ({routing['status']})",
                 "",
@@ -111,12 +119,16 @@ class EvaluationFollowups:
                 "to": list(self.settings.internal_notification_recipients),
                 "subject": f"New McCann {request.mode} evaluation",
                 "text": internal,
+                "html": email_html(
+                    result, request.mode, contact, routing=routing, agent_link=link
+                ),
             },
             "owner_email": {
                 "from": self.settings.email_from,
                 "to": [contact["email"]],
                 "subject": f"Your McCann {request.mode} evaluation",
                 "text": f"Hello {contact['name']},\n\n{summary}",
+                "html": email_html(result, request.mode, contact),
             },
         }
         identifier = self.repository.save_evaluation_lead(

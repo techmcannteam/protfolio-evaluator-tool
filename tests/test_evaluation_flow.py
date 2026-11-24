@@ -204,6 +204,59 @@ def test_no_notifications_for_empty_recipients_and_no_fub_without_assignee(flow)
     assert email.messages == [] and events == []
 
 
+@pytest.mark.parametrize("mode", ["home", "portfolio"])
+@pytest.mark.parametrize("missing_value", [False, True])
+def test_email_cap_labels_and_paragraph_spacing(flow, mode, missing_value):
+    client, _, settings, provider, email, _ = flow
+    settings.enable_email = settings.enable_team_notifications = True
+    if missing_value:
+        provider.evaluate = lambda p: {
+            "provider": "rentcast",
+            "status": "not_found",
+            "cached": True,
+        }
+    result = client.post("/api/evaluate?agent=test-ben", json=request(mode)).json()
+    client.post(f"/api/evaluations/{result['evaluation_id']}/results-shown")
+    assert len(email.messages) == 2
+    for message in email.messages:
+        text = message["text"]
+        html = message["html"]
+        cap_label = "Cap rate" if mode == "home" else "Portfolio cap rate"
+        cap = result["totals"]["cap_rate"]
+        expected = f"{cap:.2%}" if cap is not None else "Unavailable"
+        assert f"\n{cap_label}: {expected}\n\n" in text
+        assert f"{cap_label}</th>" in html
+        assert expected in html
+        assert DISCLAIMER in html
+        assert "Most likely" in html and "Condition guide" in html
+        if mode == "home":
+            assert "Portfolio cap rate" not in text
+            assert "Portfolio cap rate" not in html
+        assert f"{ADDRESS}\n\nMost likely:" in text
+        assert "\n\nProvider estimate:" in text
+        assert f"\n\n{DISCLAIMER}" in text
+        assert "\n\n\n" not in text
+    assert "Phone: Not provided\n\nAgent link:" in email.messages[0]["text"]
+    assert email.messages[1]["text"].startswith(f"Hello {CONTACT['name']},\n\n")
+    assert "Owner details" in email.messages[0]["html"]
+    assert "Owner details" not in email.messages[1]["html"]
+
+
+def test_email_html_escapes_owner_input_and_keeps_internal_details_private(flow):
+    client, _, settings, _, email, _ = flow
+    settings.enable_email = settings.enable_team_notifications = True
+    data = request("home")
+    data["contact"] = {**CONTACT, "name": '<img src=x onerror="alert(1)">'}
+    result = client.post("/api/evaluate?agent=test-ben", json=data).json()
+    client.post(f"/api/evaluations/{result['evaluation_id']}/results-shown")
+    for message in email.messages:
+        assert "<img" not in message["html"]
+        assert "&lt;img src=x onerror=&quot;alert(1)&quot;&gt;" in message["html"]
+    assert "/evaluator/home?agent=test-ben" in email.messages[0]["html"]
+    assert "agent_link" not in email.messages[1]["html"]
+    assert "team@example.com" not in email.messages[1]["html"]
+
+
 def test_not_found_still_records_internal_notification(flow):
     client, _, settings, provider, email, _ = flow
     settings.enable_email = settings.enable_team_notifications = True
